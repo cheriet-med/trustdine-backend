@@ -1,0 +1,15 @@
+{% load i18n %}
+{% autoescape off %}
+Hello,
+
+You're receiving this email because you requested to recover your username for your account at {{ site_name }}.
+
+Your username is: {{ user.get_username }}
+
+If you didn't request this, please ignore this email.
+
+Thanks,
+The {{ site_name }} Team
+
+Need help? Contact us at {{ support_email }}
+{% endautoescape %}

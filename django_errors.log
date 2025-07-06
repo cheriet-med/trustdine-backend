@@ -1,0 +1,50 @@
+Internal Server Error: /
+Traceback (most recent call last):
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: APIView.as_view() takes 1 positional argument but 2 were given
+"GET / HTTP/1.1" 500 145
+Internal Server Error: /
+Traceback (most recent call last):
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: APIView.as_view() takes 1 positional argument but 2 were given
+"GET / HTTP/1.1" 500 145
+Internal Server Error: /
+Traceback (most recent call last):
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: APIView.as_view() takes 1 positional argument but 2 were given
+"GET / HTTP/1.1" 500 145
+Internal Server Error: /
+Traceback (most recent call last):
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: APIView.as_view() takes 1 positional argument but 2 were given
+"GET / HTTP/1.1" 500 68300
+Internal Server Error: /
+Traceback (most recent call last):
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/med/Desktop/padel-backend/pad/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: APIView.as_view() takes 1 positional argument but 2 were given
+"GET / HTTP/1.1" 500 68300
