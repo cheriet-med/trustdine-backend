@@ -10,16 +10,24 @@ from cloudinary import CloudinaryImage
 class UserCreateSerializer(BaseUserCreateSerializer):
     class Meta(BaseUserCreateSerializer.Meta):
         model = UserAccount
-        fields = ('email', 'password')
+        fields = ('id', 'email', 'password', 'full_name')  # no is_partner, no is_staff
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.data.get('register_as') == 'partner':
+            validated_data['is_staff'] = True
+        else:
+            validated_data['is_staff'] = False
+        return super().create(validated_data)
 
 
 
 class InformationsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserAccount
-        fields = ('id','full_name', 'address_line_1', 'address_line_2', 'city', 'state', 'postalCode', 'countryCode', 'phoneNumber', 'status')
-
-
+        fields = ('id','full_name', 'address_line_1', 'address_line_2', 'city', 
+                'state', 'postalCode', 'countryCode', 'phoneNumber', 
+                'status')
 
 class EmailUserSearchSerializer(serializers.ModelSerializer):
     class Meta:
