@@ -25,6 +25,7 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
+    is_partner = models.BooleanField(default=False)
     full_name = models.CharField(max_length=1000, blank=True, null=True)
     address_line_1 = models.CharField(max_length=1000, blank=True, null=True)
     address_line_2 = models.CharField(max_length=1000, blank=True, null=True)
