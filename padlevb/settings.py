@@ -229,7 +229,13 @@ DJOSER = {
     #'ACTIVATION_URL': 'activate/{uid}/{token}',
     #'SEND_ACTIVATION_EMAIL': True,
     'SOCIAL_AUTH_TOKEN_STRATEGY': 'djoser.social.token.jwt.TokenStrategy',
-    'SOCIAL_AUTH_ALLOWED_REDIRECT_URIS': ['https://trustdi.netlify.app/google', 'https://trustdi.netlify.app/facebook'],
+    'SOCIAL_AUTH_ALLOWED_REDIRECT_URIS': [
+        'https://trustdi.netlify.app/google', 
+        'https://trustdi.netlify.app/facebook',
+        'http://localhost:3000/api/auth/callback/google',  # Add this for local development
+        'https://trustdine-backend.vercel.app/api/auth/callback/google'  # Add your production domain
+        
+        ],
     'SERIALIZERS': {
         'user_create': 'padlevap.serializers.UserCreateSerializer',
         'user': 'padlevap.serializers.UserCreateSerializer',
@@ -245,6 +251,10 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = ('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = ['email', 'profile', 'openid']
 
 
+
+# Add these additional Google OAuth2 settings
+SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['first_name', 'last_name', 'picture']
+SOCIAL_AUTH_GOOGLE_OAUTH2_USE_DEPRECATED_API = False
 
 
 
