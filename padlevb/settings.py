@@ -262,7 +262,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # Replace with your frontend URL
     "https://www.padlev.com",  # Add other trusted origins    
    "https://padlev.vercel.app",
-   "https://trustdi.netlify.app"
+   "https://trustdi.netlify.app",
+   "https://trustdine-backend.vercel.app
 ]
 #CORS_ORIGIN_ALLOW_ALL = True
 # Allow credentials (optional, only enable if needed)
