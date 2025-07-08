@@ -1,13 +1,13 @@
 {% load i18n %}
 
-{% block subject %}
-{% blocktrans %}email Successfully Updated | {{ site_name }}{% endblocktrans %}
+{% block subject %} 
+{% blocktrans %}email Successfully Updated | Trustdine {% endblocktrans %}
 {% endblock subject %}
 
 {% block text_body %}
 {% block content %}
 <p>Hello {{ user.full_name }},</p>
-<p>This is a confirmation that your email on {{ site_name }} has been successfully changed to <strong>{{ user.email }}</strong>.</p>
+<p>This is a confirmation that your email on Trustdine has been successfully changed to <strong>{{ user.email }}</strong>.</p>
 <p>If you didn't make this change, please contact our support team immediately.</p>
 {% endblock %}
 {% endblock html_body %}

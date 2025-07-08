@@ -234,8 +234,8 @@ DJOSER = {
         'http://localhost:3000/api/auth/callback/facebook',  # Add Facebook callback for local development
         'https://trustdine-backend.vercel.app/api/auth/callback/google',  # Add your production domain
         'https://trustdine-backend.vercel.app/api/auth/callback/facebook',  # Add Facebook callback for production
-        'https://trustdi.netlify.app/api/auth/callback/google',  # NextAuth default callback
-        'https://trustdi.netlify.app/api/auth/callback/facebook',  # NextAuth Facebook callback
+        'https://trustdine-xi.vercel.app/api/auth/callback/google',  # NextAuth default callback
+        'https://trustdine-xi.vercel.app/api/auth/callback/facebook',  # NextAuth Facebook callback
         'https://trustdine-backend.vercel.app/auth/o/google-oauth2/',  # Django's endpoint
         'https://trustdine-backend.vercel.app/auth/o/facebook/',  # Django's Facebook endpoint
         ],
@@ -273,7 +273,7 @@ SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 #    "http://localhost:3000",  # Replace with your frontend URL
 #    "https://www.padlev.com",  # Add other trusted origins    
 #   "https://padlev.vercel.app",
-#   "https://trustdi.netlify.app",  
+#   "https://trustdine-xi.vercel.app",  
 #]
 CORS_ORIGIN_ALLOW_ALL = True
 # Allow credentials (optional, only enable if needed)
