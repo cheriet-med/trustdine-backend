@@ -234,6 +234,8 @@ DJOSER = {
         'https://trustdi.netlify.app/facebook',
         'http://localhost:3000/api/auth/callback/google',  # Add this for local development
         'https://trustdine-backend.vercel.app/api/auth/callback/google'  # Add your production domain
+        'https://trustdi.netlify.app/api/auth/callback/google',  # NextAuth default callback
+        'https://trustdine-backend.vercel.app/auth/o/google-oauth2/',  # Django's endpoint
         
         ],
     'SERIALIZERS': {
