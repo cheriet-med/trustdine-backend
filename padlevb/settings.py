@@ -234,8 +234,8 @@ DJOSER = {
         'http://localhost:3000/api/auth/callback/facebook',  # Add Facebook callback for local development
         'https://trustdine-backend.vercel.app/api/auth/callback/google',  # Add your production domain
         'https://trustdine-backend.vercel.app/api/auth/callback/facebook',  # Add Facebook callback for production
-        'https://trustdine-xi.vercel.app/api/auth/callback/google',  # NextAuth default callback
-        'https://trustdine-xi.vercel.app/api/auth/callback/facebook',  # NextAuth Facebook callback
+        'https://trustdine-frontend.vercel.app/api/auth/callback/google',  # NextAuth default callback
+        'https://trustdine-frontend.vercel.app/api/auth/callback/facebook',  # NextAuth Facebook callback
         'https://trustdine-backend.vercel.app/auth/o/google-oauth2/',  # Django's endpoint
         'https://trustdine-backend.vercel.app/auth/o/facebook/',  # Django's Facebook endpoint
         ],
