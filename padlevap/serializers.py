@@ -25,8 +25,12 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 class InformationsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserAccount
-        fields = '__all__'
-
+        exclude = ['email', 'password'] 
+        extra_kwargs = {
+            'is_staff': {'read_only': True},
+            'is_active': {'read_only': True},
+            'is_superuser': {'read_only': True},
+        }
 
 class AmenitiesSerializer(serializers.ModelSerializer):
     class Meta:
