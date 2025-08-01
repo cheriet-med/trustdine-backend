@@ -6,7 +6,6 @@ router = DefaultRouter()
 urlpatterns = [
         #path("/", include(router.urls)),
    path('', Index.as_view(), name='index'),
-   path('offer/', OfferGlobal.as_view(), name='offer get and post'),
    path('newsletterpost/', NewsLetterPostGlobal.as_view(), name='newsletter-only-post'),
    path('newsletterid/<int:pk>', Newsletterid.as_view()),
    path('emailletterpost/', EmailLetterPostGlobal.as_view(), name='emailletter-only-post'),
@@ -17,10 +16,18 @@ urlpatterns = [
    path('productid/<int:pk>', Productid.as_view()),
    path('productimage/', ProductImageGlobal.as_view(), name='product-image'),
    path('productimageid/<int:pk>', ProductImageid.as_view()),
-   path('productimagevariation/', ProductImageVariationGlobal.as_view(), name='product-image-variations'),
-   path('productimagevariationid/<int:pk>', ProductImageVariationid.as_view()),
-   path('productsizevariation/', ProductSizeVariationGlobal.as_view(), name='product-size-variations'),
-   path('productsizevariationid/<int:pk>', ProductSizeVariationid.as_view()),
+ 
+
+   path('nearbyattractions/', NearbyattractionsGlobal.as_view(), name='Nearbyattractions'),
+   path('nearbyattractionsid/<int:pk>', Nearbyattractionsid.as_view()),
+
+   path('awards/', AwardsGlobal.as_view(), name='Awards'),
+   path('awardsid/<int:pk>', Awardsid.as_view()),
+
+   path('specialties/', SpecialtiesGlobal.as_view(), name='Specialties'),
+   path('specialtiesid/<int:pk>', Specialtiesid.as_view()),
+
+
    path('productreviews/', ProductReviewsGlobal.as_view(), name='product-reviews'),
    path('productreviewsid/<int:pk>', ProductReviewsid.as_view()),
    path('reviewsimage/', ReviewsImageGlobal.as_view(), name='product-reviews-images'),
@@ -48,6 +55,15 @@ urlpatterns = [
 
    path('test/', testReview.as_view(), name='test'),
    path('testid/<int:pk>', testReviewid.as_view()),
+
+
+
+   path('amenities/', AmenitiesPostGlobal.as_view(), name='Amenities'),
+   path('tamenitiesid/<int:pk>', Amenitiesid.as_view()),
+
+   path('languages/', LanguagesPostGlobal.as_view(), name='Languages'),
+   path('languagesid/<int:pk>', Languagesid.as_view()),
+
 
 
     path('api/submit-email/', SubmitEmailView.as_view(), name='submit_email'),

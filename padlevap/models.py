@@ -34,6 +34,25 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     countryCode = models.CharField(max_length=1000, blank=True, null=True)
     phoneNumber = models.CharField(max_length=1000, blank=True, null=True)
     status = models.CharField(max_length=1000, blank=True, null=True)
+    profile_image = CloudinaryField('images', blank=True, null=True)
+    username = models.CharField(max_length=1000, blank=True, null=True)
+    title = models.CharField(max_length=1000, blank=True, null=True)
+    identity_verified = models.BooleanField(default=False)
+    location = models.CharField(max_length=1000, blank=True, null=True)
+    plan = models.CharField(max_length=1000, blank=True, null=True)
+    about = models.CharField(max_length=1000, blank=True, null=True)
+    pets = models.CharField(max_length=1000, blank=True, null=True)
+    born = models.CharField(max_length=1000, blank=True, null=True)
+    time_spend = models.CharField(max_length=1000, blank=True, null=True)
+    want_to_go = models.CharField(max_length=1000, blank=True, null=True)
+    obsessed = models.CharField(max_length=1000, blank=True, null=True)
+    website = models.CharField(max_length=1000, blank=True, null=True)
+    latitude = models.CharField(max_length=1000, blank=True, null=True)
+    longtitude = models.CharField(max_length=1000, blank=True, null=True)
+    joined = models.CharField(max_length=1000, blank=True, null=True)
+    types = models.CharField(max_length=1000, blank=True, null=True)
+
+
 
     objects = UserAccountManager()
 
@@ -51,15 +70,33 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
 
 
 
-class Offer(models.Model):
-    name = models.CharField(max_length=500, blank=True, null=True)
-    email = models.CharField(max_length=1000, blank=True, null=True)
-    language = models.CharField(max_length=500, blank=True, null=True)
-    date = models.CharField(max_length=500, blank=True, null=True)
-    time = models.CharField(max_length=500, blank=True, null=True)
-    
+
+
+
+
+
+class Amenities(models.Model):
+
+    user = models.ForeignKey(UserAccount, related_name='Amenities', on_delete=models.CASCADE)
+    amenitie = models.CharField(max_length=1000, blank=True, null=True)
+  
     def __str__(self):
-        return self.email
+        return self.amenitie
+
+
+class Languages(models.Model):
+
+    user = models.ForeignKey(UserAccount, related_name='Languages', on_delete=models.CASCADE)
+    language = models.CharField(max_length=1000, blank=True, null=True)
+  
+    def __str__(self):
+        return self.language
+
+
+
+
+
+
 
 
 
@@ -75,7 +112,11 @@ class NewsLetter(models.Model):
         return self.email
 
 class EmailLetter(models.Model):
+    first_name = models.CharField(max_length=1000,blank=True, null=True)
+    last_name = models.CharField(max_length=1000,blank=True, null=True)
+    company = models.CharField(max_length=1000,blank=True, null=True)
     email = models.CharField(max_length=1000,blank=True, null=True)
+    message = models.CharField(max_length=1000,blank=True, null=True)
     language = models.CharField(max_length=500,blank=True, null=True)
     date = models.CharField(max_length=500,blank=True, null=True)
     time = models.CharField(max_length=500,blank=True, null=True)
@@ -214,141 +255,38 @@ class Post(models.Model):
         return self.title_en
 
 
-# for ecommerce database
+# for Listings
 
 
 class Product(models.Model):
-    url_en = models.CharField(max_length=1000,blank=True, null=True)
-    url_ar = models.CharField(max_length=1000,blank=True, null=True)
-    url_de = models.CharField(max_length=1000,blank=True, null=True)
-    url_es = models.CharField(max_length=1000,blank=True, null=True)
-    url_fr = models.CharField(max_length=1000,blank=True, null=True)
-    url_it = models.CharField(max_length=1000,blank=True, null=True)
-    url_nl = models.CharField(max_length=1000,blank=True, null=True)
-    url_pt = models.CharField(max_length=1000,blank=True, null=True)
-    url_ru = models.CharField(max_length=1000,blank=True, null=True)
-    url_sv = models.CharField(max_length=1000,blank=True, null=True)
-    title_en = models.CharField(max_length=1000,blank=True, null=True)
-    title_ar = models.CharField(max_length=1000,blank=True, null=True)
-    title_de = models.CharField(max_length=1000,blank=True, null=True)
-    title_es = models.CharField(max_length=1000,blank=True, null=True)
-    title_fr = models.CharField(max_length=1000,blank=True, null=True)
-    title_it = models.CharField(max_length=1000,blank=True, null=True)
-    title_nl = models.CharField(max_length=1000,blank=True, null=True)
-    title_pt = models.CharField(max_length=1000,blank=True, null=True)
-    title_ru = models.CharField(max_length=1000,blank=True, null=True)
-    title_sv = models.CharField(max_length=1000,blank=True, null=True)
-    content_en = models.CharField(max_length=10000,blank=True, null=True)
-    content_ar = models.CharField(max_length=10000,blank=True, null=True)
-    content_de = models.CharField(max_length=10000,blank=True, null=True)
-    content_es = models.CharField(max_length=10000,blank=True, null=True)
-    content_fr = models.CharField(max_length=10000,blank=True, null=True)
-    content_it = models.CharField(max_length=10000,blank=True, null=True)
-    content_nl = models.CharField(max_length=10000,blank=True, null=True)
-    content_pt = models.CharField(max_length=10000,blank=True, null=True)
-    content_ru = models.CharField(max_length=10000,blank=True, null=True)
-    content_sv = models.CharField(max_length=10000,blank=True, null=True)
-    tag_en = models.CharField(max_length=1000,blank=True, null=True)
-    tag_ar = models.CharField(max_length=1000,blank=True, null=True)
-    tag_de = models.CharField(max_length=1000,blank=True, null=True)
-    tag_es = models.CharField(max_length=1000,blank=True, null=True)
-    tag_fr = models.CharField(max_length=1000,blank=True, null=True)
-    tag_it = models.CharField(max_length=1000,blank=True, null=True)
-    tag_nl = models.CharField(max_length=1000,blank=True, null=True)
-    tag_pt = models.CharField(max_length=1000,blank=True, null=True)
-    tag_ru = models.CharField(max_length=1000,blank=True, null=True)
-    tag_sv = models.CharField(max_length=1000,blank=True, null=True)
-    image_en = CloudinaryField('images', blank=True, null=True)
-    image_ar = CloudinaryField('images', blank=True, null=True)
-    image_de = CloudinaryField('images', blank=True, null=True)
-    image_es = CloudinaryField('images', blank=True, null=True)
-    image_fr = CloudinaryField('images', blank=True, null=True)
-    image_it = CloudinaryField('images', blank=True, null=True)
-    image_nl = CloudinaryField('images', blank=True, null=True)
-    image_pt = CloudinaryField('images', blank=True, null=True)
-    image_ru = CloudinaryField('images', blank=True, null=True)
-    image_sv = CloudinaryField('images', blank=True, null=True)
-    tag1_en = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_ar = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_de = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_es = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_fr = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_it = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_nl = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_pt = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_ru = models.CharField(max_length=1000,blank=True, null=True)
-    tag1_sv = models.CharField(max_length=1000,blank=True, null=True)
-    image1_en = CloudinaryField('images', blank=True, null=True)
-    image1_ar = CloudinaryField('images', blank=True, null=True)
-    image1_de = CloudinaryField('images', blank=True, null=True)
-    image1_es = CloudinaryField('images', blank=True, null=True)
-    image1_fr = CloudinaryField('images', blank=True, null=True)
-    image1_it = CloudinaryField('images', blank=True, null=True)
-    image1_nl = CloudinaryField('images', blank=True, null=True)
-    image1_pt = CloudinaryField('images', blank=True, null=True)
-    image1_ru = CloudinaryField('images', blank=True, null=True)
-    image1_sv = CloudinaryField('images', blank=True, null=True)
-    old_price = models.CharField(max_length=500,blank=True, null=True)
-    new_price = models.CharField(max_length=500,blank=True, null=True)
-    category = models.CharField(max_length=500,blank=True, null=True)
-    date = models.CharField(max_length=500,blank=True, null=True)
-    time = models.CharField(max_length=500,blank=True, null=True)
-    dropshippingID = models.CharField(max_length=500,blank=True, null=True)
-    coupon = models.CharField(max_length=500,blank=True, null=True)
-    instock = models.CharField(max_length=1000, blank=True, null=True, default="yes")
-    brand = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_en = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_ar = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_de = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_es = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_fr = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_it = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_nl = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_pt = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_ru = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_1_sv = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_en = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_ar = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_de = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_es = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_fr = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_it = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_nl = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_pt = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_ru = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_2_sv = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_en = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_ar = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_de = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_es = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_fr = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_it = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_nl = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_pt = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_ru = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_3_sv = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_en = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_ar = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_de = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_es = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_fr = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_it = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_nl = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_pt = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_ru = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_4_sv = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_en = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_ar = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_de = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_es = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_fr = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_it = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_nl = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_pt = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_ru = models.CharField(max_length=1000,blank=True, null=True)
-    keyword_5_sv = models.CharField(max_length=1000,blank=True, null=True)
+    name = models.CharField(max_length=1000,blank=True, null=True)
+    description = models.CharField(max_length=1000,blank=True, null=True)
+    category = models.CharField(max_length=1000,blank=True, null=True)
+    rating = models.CharField(max_length=1000,blank=True, null=True)
+    price_per_night = models.CharField(max_length=1000,blank=True, null=True)
+    currency = models.CharField(max_length=1000,blank=True, null=True)
+    types = models.CharField(max_length=1000,blank=True, null=True)
+    capacity = models.CharField(max_length=1000,blank=True, null=True)
+    size = models.CharField(max_length=1000,blank=True, null=True)
+    cancellation_policy = models.CharField(max_length=1000,blank=True, null=True)
+    price_range = models.CharField(max_length=1000,blank=True, null=True)
+    average_cost = models.CharField(max_length=1000,blank=True, null=True)
+    established = models.CharField(max_length=1000,blank=True, null=True)
+    chef = models.CharField(max_length=1000,blank=True, null=True)
+    image = CloudinaryField('images', blank=True, null=True)
+    opening_hours_monday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_tuesday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_wednesday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_thursday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_friday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_saturday = models.CharField(max_length=1000,blank=True, null=True)
+    opening_hours_sunday = models.CharField(max_length=1000,blank=True, null=True)
+    organic_ingredients = models.CharField(max_length=1000,blank=True, null=True)
+    sustainable_seafood = models.CharField(max_length=1000,blank=True, null=True)
+    zero_waste_initiatives = models.CharField(max_length=1000,blank=True, null=True)
     created_at_meta = models.CharField(max_length=50, blank=True)
     updated_at_meta = models.CharField(max_length=50, blank=True)
+
 
     def save(self, *args, **kwargs):
         now = timezone.now().isoformat()
@@ -358,7 +296,7 @@ class Product(models.Model):
         super().save(*args, **kwargs)
     
     def __str__(self):
-        return self.title_en
+        return self.name
 
 
 
@@ -372,25 +310,33 @@ class ProductImage(models.Model):
 
 
 
-class ProductImageVariation(models.Model):
-    product = models.ForeignKey(Product, related_name='color_variations', on_delete=models.CASCADE)
-    color = models.CharField(max_length=100)
-    #is_primary = models.BooleanField(default=False)  # To mark the primary image for the product
+
+
+class Nearbyattractions(models.Model):
+    product = models.ForeignKey(Product, related_name='nearby_attractions', on_delete=models.CASCADE)
+    name =  models.CharField(max_length=1000,blank=True, null=True)
+    distance =  models.CharField(max_length=1000,blank=True, null=True)
 
     def __str__(self):
-        return f"Image for {self.product.name}"
+        return f"Distance for {self.product.name}"
 
 
-class SizeVariation(models.Model):
 
-    product = models.ForeignKey(Product, related_name='size_variations', on_delete=models.CASCADE)
-    size = models.CharField(max_length=100)
-    #stock = models.PositiveIntegerField(default=0)
+
+class Awards(models.Model):
+    product = models.ForeignKey(Product, related_name='awards', on_delete=models.CASCADE)
+    awards =  models.CharField(max_length=1000,blank=True, null=True)
 
     def __str__(self):
-        return f"{self.product.name} - {self.size}"
+        return f"Awards for {self.product.name}"
 
 
+class Specialties(models.Model):
+    product = models.ForeignKey(Product, related_name='specialties', on_delete=models.CASCADE)
+    specialties =  models.CharField(max_length=1000,blank=True, null=True)
+
+    def __str__(self):
+        return f"Specialties for {self.product.name}"
 
 
 
@@ -413,17 +359,16 @@ class SendEmailForPassword(models.Model):
 
 
 class ProductReview(models.Model):
-
     product = models.ForeignKey(Product, related_name='reviews', on_delete=models.CASCADE)
     user = models.ForeignKey(UserAccount, related_name='reviews', on_delete=models.CASCADE)
     rating = models.CharField(max_length=1000, blank=True, null=True)
     name = models.CharField(max_length=1000, blank=True, null=True)
-    country = models.CharField(max_length=1000, blank=True, null=True)
+    title = models.CharField(max_length=1000, blank=True, null=True)
     comment = models.CharField(max_length=1000, blank=True, null=True)
     created_at = models.CharField(max_length=1000, blank=True, null=True)
     updated_at = models.CharField(max_length=1000, blank=True, null=True)
-    color = models.CharField(max_length=1000, blank=True, null=True)
-    size = models.CharField(max_length=1000, blank=True, null=True)
+    stay_date = models.CharField(max_length=1000, blank=True, null=True)
+    trip_type = models.CharField(max_length=1000, blank=True, null=True)
 
     def __str__(self):
         return f"Review by {self.UserAccount.email} for {self.product.title_en}"

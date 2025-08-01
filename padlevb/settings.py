@@ -241,8 +241,8 @@ DJOSER = {
         ],
     'SERIALIZERS': {
         'user_create': 'padlevap.serializers.UserCreateSerializer',
-        'user': 'padlevap.serializers.UserCreateSerializer',
-        'current_user': 'padlevap.serializers.UserCreateSerializer',
+        'user': 'padlevap.serializers.InformationsSerializer',
+        'current_user': 'padlevap.serializers.InformationsSerializer',
         'user_delete': 'djoser.serializers.UserDeleteSerializer',
         
     }

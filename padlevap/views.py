@@ -25,8 +25,6 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from .models import Offer
-from .serializers import OfferSerializer
 from .tasks import send_second_email
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -36,96 +34,127 @@ class Index(APIView):
     def get(self, request):
         return HttpResponse('Loading ...')
 
-        
-class OfferGlobal(APIView):
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-    queryset = Offer.objects.all()
-    serializer_class = OfferSerializer
-    filter_backends = [SearchFilter]
-    search_fields = ['name']
-
-    def get_queryset(self):
-        return Offer.objects.all()
-
-    def filter_queryset(self, queryset):
-        for backend in self.filter_backends:
-            queryset = backend().filter_queryset(self.request, queryset, self)
-        return queryset
+    
 
 
-    def post(self, request, *args, **kwargs):
-        # Extract data from the request
-        nam = request.data.get('name')
-        em = request.data.get('email')
-        l = request.data.get('language')
-        da = request.data.get('date')
-        ti = request.data.get('time')
 
-        # Create a dictionary with the data
-        data = {
-            'name': nam,
-            'email': em,
-            'language': l,
-            'date': da,
-            'time': ti,
-        }
 
-        # Validate and save the data using the serializer
-        serializer = OfferSerializer(data=data)
+
+#Amenities endpoint
+
+class AmenitiesPostGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = Amenities.objects.all()
+                serializer_class = AmenitiesSerializer
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = Amenities.objects.all().order_by('-id')
+                    serializer = AmenitiesSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class Amenitiesid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return Amenities.objects.get(pk=pk)
+        except Amenities.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = AmenitiesSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = AmenitiesSerializer(snippet, data=request.data)
         if serializer.is_valid():
             serializer.save()
-
-            # Determine the subject and HTML template based on the language
-            if l == 'en':
-                subject = 'Your Free Book is Here – Grab Your Copy Now!'
-                html_message = render_to_string('padlevap/en.html', data)
-            elif l == 'fr':
-                subject = 'Votre livre gratuit est ici – Téléchargez votre exemplaire maintenant !'
-                html_message = render_to_string('padlevap/fr.html', data)
-            elif l == 'ar':
-                subject = 'كتابك المجاني هنا – احصل على نسختك الآن!'
-                html_message = render_to_string('padlevap/ar.html', data)
-            elif l == 'de':
-                subject = 'Ihr kostenloses Buch ist da – Holen Sie sich jetzt Ihr Exemplar!'
-                html_message = render_to_string('padlevap/de.html', data)
-            elif l == 'es':
-                subject = 'Tu libro gratis está aquí – ¡Consigue tu copia ahora!'
-                html_message = render_to_string('padlevap/es.html', data)
-            elif l == 'it':
-                subject = 'Il tuo libro gratuito è qui – Scarica la tua copia ora!'
-                html_message = render_to_string('padlevap/it.html', data)
-            elif l == 'nl':
-                subject = 'Je gratis boek is hier – Download nu je exemplaar!'
-                html_message = render_to_string('padlevap/nl.html', data)
-            elif l == 'pt':
-                subject = 'Seu Livro Grátis Está Aqui – Baixe Sua Cópia Agora!'
-                html_message = render_to_string('padlevap/pt.html', data)
-            elif l == 'ru':
-                subject = 'Ваша бесплатная книга здесь – получите свою копию прямо сейчас!'
-                html_message = render_to_string('padlevap/ru.html', data)
-            else:
-                subject = 'Din gratis bok är här – hämta din kopia nu!'
-                html_message = render_to_string('padlevap/sv.html', data)
-
-            # Send the email
-            plain_message = html_message
-            from_email = 'Padlev <contact@padlev.com>'
-            to = em
-
-            send_mail(subject, plain_message, from_email, [to], html_message=html_message)
-
-            # Schedule the second email after a one-minute delay
-            #send_second_email.apply_async(args=[data, l], countdown=60000)  # 60 seconds delay
-
             return Response(serializer.data)
-        else:
-            return Response(serializer.errors, status=400)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def get(self, request, format=None):
-            snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
-            serializer = OfferSerializer(snippets, many=True)
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+#Languages endpoint
+
+class LanguagesPostGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = Languages.objects.all()
+                serializer_class = LanguagesSerializer
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = Languages.objects.all().order_by('-id')
+                    serializer = LanguagesSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class Languagesid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return Languages.objects.get(pk=pk)
+        except Languages.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = LanguagesSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = LanguagesSerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
             return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
 
 
 
@@ -305,12 +334,7 @@ class ProductGlobal(mixins.ListModelMixin,
         'category': ['in'],  # Allows searching multiple names
     }
   
-    search_fields = [
-        'title_en', 'title_ar', 'title_de', 'title_es', 'title_fr', 'title_it', 
-        'title_nl', 'title_pt', 'title_ru', 'title_sv',
-        'url_en', 'url_ar', 'url_de', 'url_es', 'url_fr', 'url_it', 'url_nl', 'url_pt', 'url_ru', 'url_sv',
-        'content_en','content_ar','content_de','content_es','content_fr','content_it','content_nl','content_pt','content_ru','content_sv'
-    ]  # Removed category, new_price, stock
+    search_fields = []  # Removed category, new_price, stock
 
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)
@@ -418,48 +442,51 @@ class ProductImageid(APIView):
 
 
 
-# product images variation
-class ProductImageVariationGlobal(mixins.ListModelMixin,
+
+
+
+
+
+
+# product Nearbyattractions
+class NearbyattractionsGlobal(mixins.ListModelMixin,
                   mixins.CreateModelMixin,
                   generics.GenericAPIView):
                 authentication_classes = [TokenAuthentication]
                 permission_classes = [IsAuthenticated]
-                queryset = ProductImageVariation.objects.all()
-                serializer_class = ProductImagesVariantionSerializer
-                filter_backends = [DjangoFilterBackend, SearchFilter]
-                filterset_fields = ['product']  # Specify the fields to filter by
-                #search_fields = ['product', 'color']  # Add other fields if needed
-
+                queryset = Nearbyattractions.objects.all()
+                serializer_class = NearbyattractionsSerializer
+                filter_backends = [SearchFilter]
+                search_fields = ['images']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
 
                 def get(self, request, format=None):
                     snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
-                    serializer = ProductImagesVariantionSerializer(snippets, many=True)
+                    serializer = NearbyattractionsSerializer(snippets, many=True)
                     return Response(serializer.data)
 
 
 
-
-class ProductImageVariationid(APIView):
+class Nearbyattractionsid(APIView):
     """
     Retrieve, update or delete a snippet instance.
     """
     def get_object(self, pk):
         try:
-            return ProductImageVariation.objects.get(pk=pk)
-        except ProductImageVariation.DoesNotExist:
+            return Nearbyattractions.objects.get(pk=pk)
+        except Nearbyattractions.DoesNotExist:
             raise Http404
 
     def get(self, request, pk, format=None):
         snippet = self.get_object(pk)
-        serializer = ProductImagesVariantionSerializer(snippet)
+        serializer = NearbyattractionsSerializer(snippet)
         return Response(serializer.data)
 
     def put(self, request, pk, format=None):
         snippet = self.get_object(pk)
-        serializer = ProductImagesVariantionSerializer(snippet, data=request.data)
+        serializer = NearbyattractionsSerializer(snippet, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
@@ -479,56 +506,120 @@ class ProductImageVariationid(APIView):
 
 
 
-# product size variation
-class ProductSizeVariationGlobal(mixins.ListModelMixin,
+
+# product Awards
+class AwardsGlobal(mixins.ListModelMixin,
                   mixins.CreateModelMixin,
                   generics.GenericAPIView):
                 authentication_classes = [TokenAuthentication]
                 permission_classes = [IsAuthenticated]
-                queryset = SizeVariation.objects.all()
-                serializer_class = SizeVariationSerializer
-                filter_backends = [DjangoFilterBackend, SearchFilter]
-                filterset_fields = ['product']  # Specify the fields to filter by
-                #search_fields = ['product_id']  # Add other fields if needed
+                queryset = Awards.objects.all()
+                serializer_class = AwardsSerializer
+                filter_backends = [SearchFilter]
+                search_fields = ['images']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
 
                 def get(self, request, format=None):
                     snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
-                    serializer = SizeVariationSerializer(snippets, many=True)
+                    serializer = AwardsSerializer(snippets, many=True)
                     return Response(serializer.data)
 
 
 
-class ProductSizeVariationid(APIView):
+class Awardsid(APIView):
     """
     Retrieve, update or delete a snippet instance.
     """
     def get_object(self, pk):
         try:
-            return SizeVariation.objects.get(pk=pk)
-        except SizeVariation.DoesNotExist:
+            return Awards.objects.get(pk=pk)
+        except Awards.DoesNotExist:
             raise Http404
 
     def get(self, request, pk, format=None):
         snippet = self.get_object(pk)
-        serializer = SizeVariationSerializer(snippet)
+        serializer = AwardsSerializer(snippet)
         return Response(serializer.data)
 
     def put(self, request, pk, format=None):
         snippet = self.get_object(pk)
-        serializer = SizeVariationSerializer(snippet, data=request.data)
+        serializer = AwardsSerializer(snippet, data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+    
   
     def delete(self, request, pk, format=None):
         snippet = self.get_object(pk)
         snippet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+# product Specialties
+class SpecialtiesGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = Specialties.objects.all()
+                serializer_class = SpecialtiesSerializer
+                filter_backends = [SearchFilter]
+                search_fields = ['images']
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = SpecialtiesSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class Specialtiesid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return Specialties.objects.get(pk=pk)
+        except Specialties.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = SpecialtiesSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = SpecialtiesSerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
 
 
 

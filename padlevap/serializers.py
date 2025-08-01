@@ -25,21 +25,27 @@ class UserCreateSerializer(BaseUserCreateSerializer):
 class InformationsSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserAccount
-        fields = ('id','full_name', 'address_line_1', 'address_line_2', 'city', 
-                'state', 'postalCode', 'countryCode', 'phoneNumber', 
-                'status')
+        fields = '__all__'
+
+
+class AmenitiesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Amenities
+        fields = '__all__'
+
+
+
+class LanguagesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Languages
+        fields = '__all__'
+
+
 
 class EmailUserSearchSerializer(serializers.ModelSerializer):
     class Meta:
-        model = UserAccount
-        fields = ('email', 'full_name', 'address_line_1', 'address_line_2', 'city', 'state', 'postalCode', 'countryCode', 'phoneNumber')
+        fields = '__all__'
 
-
-
-class OfferSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Offer
-        fields = '__all__'  # Serialize all fields in the model
 
 class NewsLetterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -81,18 +87,25 @@ class ProductImagesSerializer(serializers.ModelSerializer):
 
 
 
-class ProductImagesVariantionSerializer(serializers.ModelSerializer):
+
+class NearbyattractionsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ProductImageVariation
+        model = Nearbyattractions
         fields = '__all__'  # Serialize all fields in the model
 
 
 
-
-class SizeVariationSerializer(serializers.ModelSerializer):
+class AwardsSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SizeVariation
+        model = Awards
         fields = '__all__'  # Serialize all fields in the model
+
+
+class SpecialtiesSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Specialties
+        fields = '__all__'  # Serialize all fields in the model
+
 
 
 
