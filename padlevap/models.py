@@ -47,6 +47,7 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     want_to_go = models.CharField(max_length=1000, blank=True, null=True)
     obsessed = models.CharField(max_length=1000, blank=True, null=True)
     website = models.CharField(max_length=1000, blank=True, null=True)
+    language = models.CharField(max_length=1000, blank=True, null=True)
     latitude = models.CharField(max_length=1000, blank=True, null=True)
     longtitude = models.CharField(max_length=1000, blank=True, null=True)
     joined = models.CharField(max_length=1000, blank=True, null=True)
