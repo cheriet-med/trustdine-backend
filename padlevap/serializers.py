@@ -27,6 +27,7 @@ class InformationsSerializer(serializers.ModelSerializer):
         model = UserAccount
         exclude = ['password'] 
         extra_kwargs = {
+            'email': {'read_only': True},
             'is_staff': {'read_only': True},
             'is_active': {'read_only': True},
             'is_superuser': {'read_only': True},
