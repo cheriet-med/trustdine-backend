@@ -328,7 +328,8 @@ class Nearbyattractions(models.Model):
 
 class Awards(models.Model):
     product = models.ForeignKey(Product, related_name='awards', on_delete=models.CASCADE)
-    awards =  models.CharField(max_length=1000,blank=True, null=True)
+    name =  models.CharField(max_length=1000,blank=True, null=True)
+    year =  models.CharField(max_length=1000,blank=True, null=True)
 
     def __str__(self):
         return f"Awards for {self.product.name}"
