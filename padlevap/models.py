@@ -284,11 +284,14 @@ class Product(models.Model):
     opening_hours_friday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_saturday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_sunday = models.CharField(max_length=1000,blank=True, null=True)
-    organic_ingredients = models.CharField(max_length=1000,blank=True, null=True)
-    sustainable_seafood = models.CharField(max_length=1000,blank=True, null=True)
-    zero_waste_initiatives = models.CharField(max_length=1000,blank=True, null=True)
+    organic_ingredients = models.BooleanField(default=False)
+    sustainable_seafood = models.BooleanField(default=False)
+    latitude = models.CharField(max_length=1000, blank=True, null=True)
+    longtitude = models.CharField(max_length=1000, blank=True, null=True)
+    location = models.CharField(max_length=1000, blank=True, null=True)
     created_at_meta = models.CharField(max_length=50, blank=True)
     updated_at_meta = models.CharField(max_length=50, blank=True)
+
 
 
     def save(self, *args, **kwargs):
