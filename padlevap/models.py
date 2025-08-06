@@ -262,6 +262,7 @@ class Post(models.Model):
 
 
 class Product(models.Model):
+    user = models.ForeignKey(UserAccount, related_name='Listings', on_delete=models.CASCADE)
     name = models.CharField(max_length=1000,blank=True, null=True)
     description = models.CharField(max_length=1000,blank=True, null=True)
     category = models.CharField(max_length=1000,blank=True, null=True)
