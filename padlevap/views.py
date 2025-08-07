@@ -49,6 +49,8 @@ class AmenitiesPostGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Amenities.objects.all()
                 serializer_class = AmenitiesSerializer
+                filter_backends = [SearchFilter]
+                search_fields = ['user', 'amenitie', 'name', 'categoty']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -108,7 +110,8 @@ class LanguagesPostGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Languages.objects.all()
                 serializer_class = LanguagesSerializer
-
+                filter_backends = [SearchFilter]
+                search_fields = ['user', 'language']
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
 
@@ -331,7 +334,7 @@ class ProductGlobal(mixins.ListModelMixin,
     filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
     #filterset_fields = ['category']  # Exact match filtering
     filterset_fields = {
-        'category': ['in'],  # Allows searching multiple names
+        'category','user', 'name', 'price_per_night', 'types', 'average_cost', 'id'  # Allows searching multiple names
     }
   
     search_fields = []  # Removed category, new_price, stock
@@ -393,7 +396,7 @@ class ProductImageGlobal(mixins.ListModelMixin,
                 queryset = ProductImage.objects.all()
                 serializer_class = ProductImagesSerializer
                 filter_backends = [SearchFilter]
-                search_fields = ['images']
+                search_fields = ['id']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -457,7 +460,7 @@ class NearbyattractionsGlobal(mixins.ListModelMixin,
                 queryset = Nearbyattractions.objects.all()
                 serializer_class = NearbyattractionsSerializer
                 filter_backends = [SearchFilter]
-                search_fields = ['images']
+                search_fields = ['id', 'distance', 'name', 'product']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -516,7 +519,7 @@ class AwardsGlobal(mixins.ListModelMixin,
                 queryset = Awards.objects.all()
                 serializer_class = AwardsSerializer
                 filter_backends = [SearchFilter]
-                search_fields = ['images']
+                search_fields = ['id', 'name', 'year', 'product' ]
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
