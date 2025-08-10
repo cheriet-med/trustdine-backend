@@ -49,16 +49,18 @@ class AmenitiesPostGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Amenities.objects.all()
                 serializer_class = AmenitiesSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['user', 'amenitie', 'name', 'categoty']
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['categoty']  # Exact match filtering
+                filterset_fields = ['categoty','user', 'name', 'id']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
 
                 def get(self, request, format=None):
-                    snippets = Amenities.objects.all().order_by('-id')
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
                     serializer = AmenitiesSerializer(snippets, many=True)
-                    return Response(serializer.data)
+                    return Response(serializer.data) 
+               
 
 
 
@@ -110,15 +112,16 @@ class LanguagesPostGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Languages.objects.all()
                 serializer_class = LanguagesSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['user', 'language']
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['categoty']  # Exact match filtering
+                filterset_fields = ['user', 'language', 'id']
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
-
                 def get(self, request, format=None):
-                    snippets = Languages.objects.all().order_by('-id')
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
                     serializer = LanguagesSerializer(snippets, many=True)
                     return Response(serializer.data)
+                
 
 
 
@@ -343,7 +346,7 @@ class ProductGlobal(mixins.ListModelMixin,
         return self.create(request, *args, **kwargs)
 
     def get(self, request, format=None):
-        filtered_queryset = self.filter_queryset(self.get_queryset().order_by('?'))
+        filtered_queryset = self.filter_queryset(self.get_queryset().order_by('-id'))
         serializer = ProductSerializer(filtered_queryset, many=True)
         return Response(serializer.data)
 
@@ -395,8 +398,12 @@ class ProductImageGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = ProductImage.objects.all()
                 serializer_class = ProductImagesSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['id']
+                #filter_backends = [SearchFilter]
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'product', 'id'  # Allows searching multiple names
+                }
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -459,8 +466,11 @@ class NearbyattractionsGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Nearbyattractions.objects.all()
                 serializer_class = NearbyattractionsSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['id', 'distance', 'name', 'product']
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'product', 'id', 'name', 'distance' # Allows searching multiple names
+                }
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -518,8 +528,11 @@ class AwardsGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = Awards.objects.all()
                 serializer_class = AwardsSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['id', 'name', 'year', 'product' ]
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'product', 'id', 'name', 'year' # Allows searching multiple names
+                }
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
