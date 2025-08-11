@@ -48,8 +48,8 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     obsessed = models.CharField(max_length=1000, blank=True, null=True)
     website = models.CharField(max_length=1000, blank=True, null=True)
     language = models.CharField(max_length=1000, blank=True, null=True)
-    latitude = models.CharField(max_length=1000, blank=True, null=True)
-    longtitude = models.CharField(max_length=1000, blank=True, null=True)
+    latitude = models.FloatField(blank=True, null=True)
+    longtitude = models.FloatField(blank=True, null=True) 
     joined = models.CharField(max_length=1000, blank=True, null=True)
     types = models.CharField(max_length=1000, blank=True, null=True)
 
