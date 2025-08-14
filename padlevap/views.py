@@ -773,7 +773,7 @@ class OrderGlobal(mixins.ListModelMixin,
                 queryset = Order.objects.all()
                 serializer_class = OrderSerializer
                 filter_backends = [DjangoFilterBackend, SearchFilter]
-                filterset_fields = ['status', 'product', 'user']  # Specify the fields to filter by
+                filterset_fields = ['status', 'product', 'user', 'check_in_date', 'check_out_date', 'total_guests', 'adults', 'children', 'room_quantity', 'restaurat_check_in_date', 'restaurat_check_in_time']  # Specify the fields to filter by
                 #search_fields = ['orders']
 
                 def post(self, request, *args, **kwargs):
