@@ -715,8 +715,9 @@ class ReviewsImageGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = RviewsImage.objects.all()
                 serializer_class = RviewsImageSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['Reviews_image']
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['categoty']  # Exact match filtering
+                filterset_fields = ['ProductReview']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
@@ -725,7 +726,6 @@ class ReviewsImageGlobal(mixins.ListModelMixin,
                     snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
                     serializer = RviewsImageSerializer(snippets, many=True)
                     return Response(serializer.data)
-
 
 
 class ReviewsImageid(APIView):
