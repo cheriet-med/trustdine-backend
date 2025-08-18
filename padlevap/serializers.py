@@ -236,3 +236,17 @@ class TestSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"Image upload failed: {str(e)}")
         
         return super().create(validated_data)
+
+
+
+
+
+
+class BillValidationSerializer(serializers.Serializer):
+    title = serializers.CharField(max_length=255)
+    image = serializers.ImageField()
+    
+    def validate_title(self, value):
+        if not value.strip():
+            raise serializers.ValidationError("Title cannot be empty")
+        return value.strip()

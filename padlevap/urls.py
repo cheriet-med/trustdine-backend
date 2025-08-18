@@ -69,6 +69,8 @@ urlpatterns = [
     path('api/submit-email/', SubmitEmailView.as_view(), name='submit_email'),
     path('api/trigger-emails/', trigger_emails, name='trigger_emails'),  # For Cron-Job.org
 
+    path('api/validate-bill/', BillValidationView.as_view(), name='validate-bill'),
+
 ]
 
 
