@@ -1616,7 +1616,7 @@ class testReviewid(APIView):
 
 
 # bill validation
-"""
+
 class BillValidationView(APIView):
     parser_classes = (MultiPartParser, FormParser)
     
@@ -2051,4 +2051,3 @@ class BillValidationView(APIView):
         
         return None
 
-        """
