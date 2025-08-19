@@ -8,6 +8,9 @@ RUN apt-get update && \
     tesseract-ocr-eng && \
     rm -rf /var/lib/apt/lists/*
 
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+
 # Set working directory
 WORKDIR /app
 
@@ -19,4 +22,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the application
-CMD ["python", "main.py"]
+CMD ["gunicorn", "padlevb.wsgi:application", "--bind", "0.0.0.0:8000"]
