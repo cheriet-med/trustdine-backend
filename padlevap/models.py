@@ -416,7 +416,7 @@ class ReviewReport(models.Model):
     review = models.ForeignKey(ProductReview, related_name="reports", on_delete=models.CASCADE)
     user = models.ForeignKey(UserAccount, related_name='user_reviews_raports', on_delete=models.CASCADE)
     reason = models.CharField(max_length=1000, blank=True, null=True)
-
+    informations = models.CharField(max_length=1000, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
