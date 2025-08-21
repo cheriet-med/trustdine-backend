@@ -65,6 +65,15 @@ urlpatterns = [
    path('languagesid/<int:pk>', Languagesid.as_view()),
 
 
+   path('reviewhlpful/', ReviewHelpfulGlobal.as_view(), name='Languages'),
+   path('reviewhlpfulid/<int:pk>', ReviewHelpfulid.as_view()),
+
+   path('reviewreport/', ReviewReportGlobal.as_view(), name='Languages'),
+   path('reviewreportid/<int:pk>', ReviewReportid.as_view()),
+
+   path('score/', ReviewScoreGlobal.as_view(), name='Languages'),
+   path('scoreid/<int:pk>', ReviewScoreid.as_view()),
+
 
     path('api/submit-email/', SubmitEmailView.as_view(), name='submit_email'),
     path('api/trigger-emails/', trigger_emails, name='trigger_emails'),  # For Cron-Job.org

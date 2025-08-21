@@ -404,6 +404,42 @@ class RviewsImage(models.Model):
 
 
 
+class ReviewHelpful(models.Model):
+    review = models.ForeignKey(ProductReview, related_name="helpful_votes", on_delete=models.CASCADE)
+    user = models.ForeignKey(UserAccount, related_name='user_reviews_vote', on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ("review", "user")  # one vote per user
+
+
+class ReviewReport(models.Model):
+    review = models.ForeignKey(ProductReview, related_name="reports", on_delete=models.CASCADE)
+    user = models.ForeignKey(UserAccount, related_name='user_reviews_raports', on_delete=models.CASCADE)
+    reason = models.CharField(max_length=1000, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("review", "user")  # one report per user
+
+
+
+class ReviewScore(models.Model):
+    review = models.ForeignKey(ProductReview, related_name="score", on_delete=models.CASCADE)
+    user = models.ForeignKey(UserAccount, related_name='user_reviews_score', on_delete=models.CASCADE)
+    clean = models.CharField(max_length=1000, blank=True, null=True)
+    blur = models.CharField(max_length=1000, blank=True, null=True)
+    verified = models.CharField(max_length=1000, blank=True, null=True)
+    fake = models.CharField(max_length=1000, blank=True, null=True)
+    total = models.CharField(max_length=1000, blank=True, null=True)
+
+
+    def __str__(self):
+        return f"{self.user}"
+
+
+
+
 class Order(models.Model):
 
     user = models.ForeignKey(UserAccount, related_name='user_orders', on_delete=models.CASCADE)

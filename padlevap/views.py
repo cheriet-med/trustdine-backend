@@ -778,6 +778,215 @@ class ReviewsImageid(APIView):
 
 
 
+
+
+
+
+# reviews helpful
+
+
+class ReviewHelpfulGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = ReviewHelpful.objects.all()
+                serializer_class = ReviewHelpfulSerializer
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'review', 'user',  # Allows searching multiple names
+                }
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = ReviewHelpfulSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class ReviewHelpfulid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return ReviewHelpful.objects.get(pk=pk)
+        except ReviewHelpful.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewHelpfulSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewHelpfulSerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+
+
+# reviews report
+
+
+class ReviewReportGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = ReviewReport.objects.all()
+                serializer_class = ReviewReportSerializer
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'review', 'user', 'reason'  # Allows searching multiple names
+                }
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = ReviewReportSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class ReviewReportid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return ReviewReport.objects.get(pk=pk)
+        except ReviewReport.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewReportSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewReportSerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# reviews Score
+
+
+class ReviewScoreGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = ReviewScore.objects.all()
+                serializer_class = ReviewScoreSerializer
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'review', 'user', 'clean', 'blur', 'verified', 'fake', 'total' # Allows searching multiple names
+                }
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = ReviewScoreSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class ReviewScoreid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return ReviewScore.objects.get(pk=pk)
+        except ReviewScore.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewScoreSerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = ReviewScoreSerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # order
 class OrderGlobal(mixins.ListModelMixin,
                   mixins.CreateModelMixin,

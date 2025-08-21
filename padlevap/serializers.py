@@ -250,3 +250,32 @@ class BillValidationSerializer(serializers.Serializer):
         if not value.strip():
             raise serializers.ValidationError("Title cannot be empty")
         return value.strip()
+
+
+
+
+
+
+
+class ReviewHelpfulSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewHelpful
+        fields = '__all__'  # Serialize all fields in the model
+
+
+
+
+class ReviewReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewReport
+        fields = '__all__'  # Serialize all fields in the model
+
+
+
+
+
+class ReviewScoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewScore
+        fields = '__all__'  # Serialize all fields in the model
+
