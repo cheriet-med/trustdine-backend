@@ -18,6 +18,7 @@ import cloudinary.uploader
 import cloudinary.api
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+import pytesseract
 
 # Load environment variables from .env file
 load_dotenv()
@@ -304,3 +305,4 @@ CELERY_BROKER_USE_SSL = {
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
