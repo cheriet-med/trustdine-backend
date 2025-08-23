@@ -465,7 +465,11 @@ class Order(models.Model):
     refund_amount = models.CharField(max_length=500,blank=True, null=True)
     restaurat_check_in_date = models.CharField(max_length=500,blank=True, null=True)
     restaurat_check_in_time = models.CharField(max_length=500,blank=True, null=True)
-   
+    name = models.CharField(max_length=500,blank=True, null=True)
+    category = models.CharField(max_length=500,blank=True, null=True)
+    cancellation_policy = models.CharField(max_length=500,blank=True, null=True)
+    location = models.CharField(max_length=500,blank=True, null=True)
+
     def __str__(self):
         return f"Order #{self.id}"
 
