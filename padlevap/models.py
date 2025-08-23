@@ -277,6 +277,7 @@ class Product(models.Model):
     average_cost = models.CharField(max_length=1000,blank=True, null=True)
     established = models.CharField(max_length=1000,blank=True, null=True)
     chef = models.CharField(max_length=1000,blank=True, null=True)
+    rooms_number = models.CharField(max_length=1000,blank=True, null=True)
     image = CloudinaryField('images', blank=True, null=True)
     opening_hours_monday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_tuesday = models.CharField(max_length=1000,blank=True, null=True)
