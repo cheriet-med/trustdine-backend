@@ -2755,4 +2755,4 @@ class BillValidationView(APIView):
         
         print("=== END DEBUG ===")
         
-        return None  # This is just for debugging
+        return None  
