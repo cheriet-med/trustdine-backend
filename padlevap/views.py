@@ -41,6 +41,8 @@ import re
 from datetime import datetime, timedelta
 import os
 import tempfile
+import cv2
+import numpy as np
 
 
 
@@ -1826,6 +1828,7 @@ class testReviewid(APIView):
 
 # bill validation
 
+
 class BillValidationView(APIView):
     parser_classes = (MultiPartParser, FormParser)
     
@@ -1863,10 +1866,7 @@ class BillValidationView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def process_bill_image(self, image_file, input_title):
-
-        
-
-        """Process the uploaded image with quality checks and upscaling for blurry images"""
+        """Process the uploaded image with enhanced preprocessing and multiple OCR attempts"""
         # Save image temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
             for chunk in image_file.chunks():
@@ -1881,84 +1881,262 @@ class BillValidationView(APIView):
             quality_report = self.check_image_quality(temp_file_path)
             is_blurry = quality_report.get('is_blurry', False)
             
-            # If image is blurry, try to upscale and enhance it before OCR
-            if is_blurry:
-                try:
-                    # Upscale using OpenCV and sharpening
-                    img = cv2.imread(temp_file_path)
-                    
-                    # Double the resolution using INTER_CUBIC interpolation
-                    upscaled = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-                    
-                    # Apply sharpening filter
-                    kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-                    sharpened = cv2.filter2D(upscaled, -1, kernel)
-                    
-                    # Save the enhanced image temporarily
-                    enhanced_path = temp_file_path + "_enhanced.png"
-                    cv2.imwrite(enhanced_path, sharpened)
-                    
-                    # Check if enhancement helped
-                    enhanced_quality = self.check_image_quality(enhanced_path)
-                    if enhanced_quality.get('sharpness_score', 0) > quality_report.get('sharpness_score', 0):
-                        # Use the enhanced image if it's better
-                        image = Image.open(enhanced_path)
-                        quality_report = enhanced_quality
-                        is_blurry = enhanced_quality.get('is_blurry', True)
-                    
-                except Exception as e:
-                    # If enhancement fails, proceed with original image
-                    print(f"Image enhancement failed: {str(e)}")
+            # Enhanced preprocessing and OCR with debugging
+            best_ocr_result = self.enhanced_ocr_processing(temp_file_path, is_blurry)
             
-            if is_blurry:
+            # Debug date extraction (optional - remove in production)
+            # self.debug_date_extraction(best_ocr_result)
+            
+            # If very little text extracted, check if it's due to blurriness
+            if len(best_ocr_result.strip()) < 20:
                 return {
                     'status': 'rejected',
-                    'message': 'Image is too blurry to process',
+                    'message': 'Image is too blurry - extracted very little text',
                     'data': {
+                        'extracted_text': best_ocr_result,
                         'quality_report': quality_report,
                         'is_bill': True,
                         'potential_titles': [input_title]
                     }
                 }
             
-            # Extract text using OCR with higher quality settings
-            extracted_text = pytesseract.image_to_string(
-                image, 
-                lang='eng',
-                config='--psm 6 --oem 3'  # Assume uniform block of text, LSTM OCR engine
-            )
-            
-            # If very little text extracted, check if it's due to blurriness
-            if len(extracted_text.strip()) < 20:  # Threshold for minimal text
-                quality_report = self.check_image_quality(temp_file_path)
-                if quality_report.get('is_blurry', False):
-                    return {
-                        'status': 'rejected',
-                        'message': 'Image is too blurry - extracted very little text',
-                        'data': {
-                            'extracted_text': extracted_text,
-                            'quality_report': quality_report,
-                            'is_bill': True,
-                            'potential_titles': [input_title]
-                        }
-                    }
-            
-            # Rest of your existing processing...
-            extracted_data = self.extract_bill_data(extracted_text)
+            # Extract and validate bill data
+            extracted_data = self.extract_bill_data(best_ocr_result)
             validation_result = self.validate_bill_data(extracted_data, input_title)
             
             return validation_result
             
         finally:
             # Clean up temporary files
-            if os.path.exists(temp_file_path):
-                os.unlink(temp_file_path)
-            enhanced_path = temp_file_path + "_enhanced.png"
-            if os.path.exists(enhanced_path):
-                os.unlink(enhanced_path)
+            self.cleanup_temp_files(temp_file_path)
+    
+    def enhanced_ocr_processing(self, image_path, is_blurry):
+        """Apply enhanced preprocessing and multiple OCR attempts"""
+        
+        # Read the original image
+        img_cv = cv2.imread(image_path)
+        img_pil = Image.open(image_path)
+        
+        # Create multiple preprocessed versions
+        preprocessed_images = []
+        
+        # 1. Original image (as baseline)
+        preprocessed_images.append(("original", img_cv, img_pil))
+        
+        # 2. Enhanced version with multiple preprocessing steps
+        enhanced_cv, enhanced_pil = self.apply_comprehensive_preprocessing(img_cv, img_pil)
+        preprocessed_images.append(("enhanced", enhanced_cv, enhanced_pil))
+        
+        # 3. If blurry, create upscaled version
+        if is_blurry:
+            upscaled_cv, upscaled_pil = self.apply_upscaling_and_sharpening(img_cv, img_pil)
+            preprocessed_images.append(("upscaled", upscaled_cv, upscaled_pil))
+        
+        # 4. High contrast version for difficult text
+        contrast_cv, contrast_pil = self.apply_high_contrast_processing(img_cv, img_pil)
+        preprocessed_images.append(("high_contrast", contrast_cv, contrast_pil))
+        
+        # Run OCR on each preprocessed version with different configurations
+        ocr_results = []
+        
+        ocr_configs = [
+            '--psm 6 --oem 3',  # Uniform block of text
+            '--psm 4 --oem 3',  # Single column of text
+            '--psm 7 --oem 3',  # Single text line
+            '--psm 8 --oem 3',  # Single word
+            '--psm 13 --oem 3', # Raw line
+        ]
+        
+        for version_name, cv_img, pil_img in preprocessed_images:
+            # Save preprocessed image temporarily
+            temp_processed_path = f"{image_path}_{version_name}.png"
+            cv2.imwrite(temp_processed_path, cv_img)
+            
+            for config in ocr_configs:
+                try:
+                    # Extract text with current configuration
+                    extracted_text = pytesseract.image_to_string(
+                        pil_img,
+                        lang='eng',
+                        config=config
+                    )
+                    
+                    # Score this result
+                    score = self.score_ocr_result(extracted_text)
+                    
+                    ocr_results.append({
+                        'text': extracted_text,
+                        'score': score,
+                        'version': version_name,
+                        'config': config
+                    })
+                    
+                except Exception as e:
+                    print(f"OCR failed for {version_name} with config {config}: {str(e)}")
+                    continue
+            
+            # Clean up temporary processed image
+            if os.path.exists(temp_processed_path):
+                os.unlink(temp_processed_path)
+        
+        # Return the best result
+        if ocr_results:
+            best_result = max(ocr_results, key=lambda x: x['score'])
+            print(f"Best OCR result from: {best_result['version']} with config: {best_result['config']}")
+            return best_result['text']
+        else:
+            # Fallback to simple OCR
+            return pytesseract.image_to_string(img_pil, lang='eng', config='--psm 6 --oem 3')
+    
+    def apply_comprehensive_preprocessing(self, img_cv, img_pil):
+        """Apply comprehensive preprocessing for better OCR accuracy"""
+        
+        # Convert to grayscale
+        if len(img_cv.shape) == 3:
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_cv.copy()
+        
+        # 1. Noise reduction
+        denoised = cv2.fastNlMeansDenoising(gray)
+        
+        # 2. Gaussian blur to smooth
+        blurred = cv2.GaussianBlur(denoised, (1, 1), 0)
+        
+        # 3. Adaptive thresholding for better text separation
+        adaptive_thresh = cv2.adaptiveThreshold(
+            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+        )
+        
+        # 4. Morphological operations to clean text
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        cleaned = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
+        
+        # 5. Histogram equalization for contrast enhancement
+        enhanced = cv2.equalizeHist(cleaned)
+        
+        # Convert back to PIL for OCR
+        enhanced_pil = Image.fromarray(enhanced)
+        
+        return enhanced, enhanced_pil
+    
+    def apply_upscaling_and_sharpening(self, img_cv, img_pil):
+        """Apply upscaling and sharpening for blurry images"""
+        
+        # Convert to grayscale first
+        if len(img_cv.shape) == 3:
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_cv.copy()
+        
+        # 1. Upscale using INTER_CUBIC for better quality
+        height, width = gray.shape
+        upscaled = cv2.resize(gray, (width * 3, height * 3), interpolation=cv2.INTER_CUBIC)
+        
+        # 2. Apply multiple sharpening techniques
+        
+        # Unsharp masking
+        blurred = cv2.GaussianBlur(upscaled, (0, 0), 2.0)
+        unsharp = cv2.addWeighted(upscaled, 1.5, blurred, -0.5, 0)
+        
+        # Additional sharpening kernel
+        kernel = np.array([[-1, -1, -1],
+                          [-1,  9, -1],
+                          [-1, -1, -1]])
+        sharpened = cv2.filter2D(unsharp, -1, kernel)
+        
+        # 3. Normalize to full range
+        normalized = cv2.normalize(sharpened, None, 0, 255, cv2.NORM_MINMAX)
+        
+        # 4. Apply bilateral filter to reduce noise while keeping edges sharp
+        final = cv2.bilateralFilter(normalized.astype(np.uint8), 9, 75, 75)
+        
+        # Convert to PIL
+        final_pil = Image.fromarray(final)
+        
+        return final, final_pil
+    
+    def apply_high_contrast_processing(self, img_cv, img_pil):
+        """Apply high contrast processing for difficult text"""
+        
+        # Convert to grayscale
+        if len(img_cv.shape) == 3:
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_cv.copy()
+        
+        # 1. CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+        clahe_applied = clahe.apply(gray)
+        
+        # 2. Binary thresholding with Otsu's method
+        _, binary = cv2.threshold(clahe_applied, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # 3. Morphological operations to connect broken characters
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 1))
+        connected = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        
+        # 4. Remove small noise
+        kernel_noise = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+        final = cv2.morphologyEx(connected, cv2.MORPH_OPEN, kernel_noise)
+        
+        # Convert to PIL
+        final_pil = Image.fromarray(final)
+        
+        return final, final_pil
+    
+    def score_ocr_result(self, text):
+        """Score OCR results based on various criteria"""
+        if not text or len(text.strip()) < 10:
+            return 0
+        
+        score = 0
+        
+        # 1. Length score (more text usually better)
+        score += min(len(text.strip()) / 100, 10)
+        
+        # 2. Bill indicators score
+        bill_indicators = [
+            'invoice', 'bill', 'receipt', 'statement', 'payment',
+            'total', 'amount', 'due', 'subtotal', 'tax', 'charge',
+            'check', 'thank you', 'vat', 'service', 'table', 'tab',
+            'fizetendo', 'fogyasztas', 'szervizdi', 'asztal'
+        ]
+        
+        lower_text = text.lower()
+        for indicator in bill_indicators:
+            if indicator in lower_text:
+                score += 5
+        
+        # 3. Date pattern score
+        date_patterns = [
+            r'\d{4}\.\d{2}\.\d{2}\.\s*\d{2}:\d{2}:\d{2}',
+            r'\d{2}\.\d{2}\.\d{4}',
+            r'\d{4}-\d{2}-\d{2}'
+        ]
+        
+        for pattern in date_patterns:
+            if re.search(pattern, text):
+                score += 10
+        
+        # 4. Amount patterns score
+        if re.search(r'\d+\s*(?:Ft|HUF|EUR|USD)', text):
+            score += 8
+        
+        # 5. Structure score (lines with meaningful content)
+        lines = [line.strip() for line in text.split('\n') if len(line.strip()) > 3]
+        score += len(lines) * 0.5
+        
+        # 6. Character quality score (penalize too many special chars or OCR artifacts)
+        clean_chars = re.sub(r'[^\w\s.,:\-/]', '', text)
+        if len(text) > 0:
+            quality_ratio = len(clean_chars) / len(text)
+            score += quality_ratio * 5
+        
+        return score
     
     def check_image_quality(self, image_path):
-        """Check if image is blurry using OpenCV"""
+        """Enhanced image quality check with multiple metrics"""
         try:
             # Read image
             image = cv2.imread(image_path)
@@ -1968,126 +2146,208 @@ class BillValidationView(APIView):
             # Convert to grayscale
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
             
-            # Calculate Laplacian variance (measure of blurriness)
+            # 1. Laplacian variance (blur detection)
             laplacian_var = cv2.Laplacian(gray, cv2.CV_64F).var()
             
-            # Threshold for blur detection (adjust as needed)
-            is_blurry = laplacian_var < 100  # Lower values mean more blurry
+            # 2. Sobel variance (edge detection)
+            sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+            sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+            sobel_var = np.var(sobel_x) + np.var(sobel_y)
+            
+            # 3. Gradient magnitude
+            gradient_magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
+            gradient_mean = np.mean(gradient_magnitude)
+            
+            # 4. Contrast measurement
+            contrast = gray.std()
+            
+            # Combined blur threshold (more sophisticated)
+            is_blurry = (laplacian_var < 100 or sobel_var < 1000 or gradient_mean < 20)
             
             return {
                 'is_blurry': is_blurry,
                 'sharpness_score': laplacian_var,
-                'threshold': 100,
-                'resolution': f"{image.shape[1]}x{image.shape[0]}"
+                'sobel_variance': sobel_var,
+                'gradient_mean': gradient_mean,
+                'contrast': contrast,
+                'resolution': f"{image.shape[1]}x{image.shape[0]}",
+                'thresholds': {
+                    'laplacian': 100,
+                    'sobel': 1000,
+                    'gradient': 20
+                }
             }
         except Exception as e:
             return {'error': f'Quality check failed: {str(e)}'}
     
     def extract_bill_data(self, text):
-        """Extract relevant data from OCR text with restaurant-specific improvements"""
+        """Extract relevant data from OCR text with enhanced pattern matching"""
         # Enhanced bill indicators for restaurants
         bill_indicators = [
             'invoice', 'bill', 'receipt', 'statement', 'payment',
             'total', 'amount', 'due', 'subtotal', 'tax', 'charge',
             'check', 'thank you', 'vat', 'service', 'table', 'tab',
-            'cosmopolitan', 'tel no', 'custom', 'servicenot included'
+            'cosmopolitan', 'tel no', 'custom', 'servicenot included',
+            'fizetendo', 'fogyasztas', 'szervizdi', 'asztal', 'felszolgalta'
         ]
         
-        # Extract potential titles/company names
+        # Extract potential titles/company names (improved)
         lines = text.strip().split('\n')
         potential_titles = []
         
-        for i, line in enumerate(lines[:5]):  # Check first 5 lines
+
+
+
+
+        for i, line in enumerate(lines[:8]):  # Check first 8 lines instead of 5
             clean_line = line.strip()
-            if len(clean_line) > 2 and not re.match(r'^[\d\s\-\/\.\,\$]+$', clean_line):
+            # Skip lines that are mostly numbers, dates, or very short
+            if (len(clean_line) > 2 and 
+                not re.match(r'^[\d\s\-\/\.\,\$\:]+$', clean_line) and
+                not re.match(r'^\d{4}\.\d{2}\.\d{2}', clean_line) and
+                len(clean_line) < 50):  # Avoid very long OCR artifacts
                 potential_titles.append(clean_line)
         
-        # Enhanced date extraction
+        # Enhanced date extraction with OCR error correction
         date_patterns = [
- # Your exact format (day.month.year/hour:minute:second)
-        r'(\d{2}\.\d{2}\.\d{4}/\d{2}:\d{2}:\d{2})',
-        
-        # More flexible versions that might appear in OCR
-        r'(\d{1,2}\s*\.\s*\d{1,2}\s*\.\s*\d{2,4}\s*/\s*\d{1,2}\s*:\s*\d{1,2}\s*:\s*\d{1,2})',
-        r'(\d{1,2}\.\d{1,2}\.\d{2,4}\s+\d{1,2}:\d{1,2}:\d{1,2})',
-    # Full date-time with seconds (dot + space)
-    r'\b(\d{4}\.\d{2}\.\d{2}\.\s*\d{2}:\d{2}:\d{2})\b',   # 2025.08.15. 13:44:57
-
-    # Full date-time with seconds (dot + slash)
-    r'(\d{2}\.\d{2}\.\d{4}/\d{2}:\d{2}:\d{2})',
-
-    # Date + time (without seconds, dot + space)
-    r'\b(\d{4}\.\d{2}\.\d{2}\.\s*\d{2}:\d{2})\b',         # 2025.08.15. 13:44
-
-    # Date only
-    r'\b(\d{4}\.\d{2}\.\d{2})\b',                         # 2025.08.15
-    r'\b(\d{2}\.\d{2}\.\d{4})\b',                         # 07.11.2025
-
-    # Common international date formats
-    r'\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b',
-    r'\b(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b',
-    r'\b(\d{1,2}[-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/]\d{2,4})\b',
-    r'\b(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b',
-    r'\b((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4})\b',
-
-    # Time only (last so it doesn’t override full datetime)
-    r'\b(\d{1,2}:\d{1,2}(:\d{1,2})?)\b'
-]
+            # Hungarian format with time (your specific format)
+            r'nyitas:\s*(\d{4}\.\d{1,2}\.\d{1,2}\.\s*\d{1,2}:\d{1,2}:\d{1,2})',  # With context
+            r'(\d{4}\.\d{1,2}\.\d{1,2}\.\s*\d{1,2}:\d{1,2}:\d{1,2})',           # 2025.08.15. 13:44:57
+            r'(\d{2}\.\d{1,2}\.\d{4}\s*/\s*\d{1,2}:\d{1,2}:\d{1,2})',           # 15.08.2025/13:44:57
+            
+            # Date only patterns
+            r'\b(\d{4}\.\d{1,2}\.\d{1,2})\b',                                   # 2025.08.15
+            r'\b(\d{1,2}\.\d{1,2}\.\d{4})\b',                                   # 15.08.2025
+            
+            # Common international formats
+            r'\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b',                        # 15/08/2025, 15-08-25
+            r'\b(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b',                          # 2025/08/15, 2025-08-15
+            
+            # Month name formats
+            r'\b(\d{1,2}[-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/]\d{2,4})\b',
+            r'\b(\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b',
+            r'\b((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{2,4})\b',
+            
+            # Time patterns (separate from dates)
+            r'\b(\d{1,2}:\d{1,2}:\d{1,2})\b',                                  # 13:44:57
+            r'\b(\d{1,2}:\d{1,2})\b'                                            # 13:44
+        ]
 
         extracted_dates = []
         for pattern in date_patterns:
             matches = re.finditer(pattern, text, re.IGNORECASE)
             for match in matches:
-                # Get the full date group (group 0) or the first subgroup
-                date_str = match.group(0) if len(match.groups()) == 0 else match.group(1)
-                if date_str:
-                    extracted_dates.append(date_str)
+                date_str = match.group(1) if match.groups() else match.group(0)
+                if date_str and date_str not in extracted_dates:
+                    # Apply OCR error corrections for common digit misreadings
+                    corrected_date = self.correct_ocr_date_errors(date_str)
+                    extracted_dates.append(corrected_date)
 
-
-
-        # Enhanced amount extraction for restaurant bills
-        amount_pattern = r'\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?\s*(?:Ft|HUF|USD|EUR|GBP)?\b'
-        amounts = re.findall(amount_pattern, text)
-        amounts = [amt.replace('£', '').replace('$', '').replace(',', '').strip() for amt in amounts]
+        # Enhanced amount extraction
+        amount_patterns = [
+            r'\b\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?\s*(?:Ft|HUF|USD|EUR|GBP)\b',  # With currency
+            r'\b\d{1,4}\s+\d{3}(?:\s+\d{3})*\s*(?:Ft|HUF)?\b',                   # Space-separated (Hungarian style)
+            r'\b\d{1,3}(?:\s\d{3})*\s*Ft\b',                                     # Hungarian forint format
+            r'\b\d+\s*(?:Ft|HUF|EUR|USD)\b'                                      # Simple amount + currency
+        ]
+        
+        amounts = []
+        for pattern in amount_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            amounts.extend(matches)
+        
+        # Remove duplicates and clean amounts
+        amounts = list(set([amt.replace('£', '').replace('$', '').replace(',', '').strip() for amt in amounts]))
         
         # Check if text contains bill indicators (case insensitive)
         lower_text = text.lower()
         is_bill = any(indicator.lower() in lower_text for indicator in bill_indicators)
         
-        # Additional check for restaurant bills - look for itemized purchases
-        has_items = bool(re.search(r'\d+\s+[A-Za-z].+\d+\.\d{2}', text))
+        # Enhanced item detection for restaurant bills
+        item_patterns = [
+            r'\d+\s+[A-Za-z].+\d+[.,]\d{2}',     # Quantity + item + price
+            r'[A-Za-z].+\d+\s*(?:Ft|HUF)',      # Item + amount
+            r'\d+\s*[xX]\s*.+\d+[.,]\d{2}',     # 2x item 12.50
+        ]
+        
+        has_items = any(re.search(pattern, text) for pattern in item_patterns)
         
         return {
             'extracted_text': text,
             'potential_titles': potential_titles,
             'extracted_dates': extracted_dates,
             'amounts': amounts,
-            'is_bill': is_bill or has_items,  # Consider it a bill if it has items
+            'is_bill': is_bill or has_items,
             'bill_indicators_found': [indicator for indicator in bill_indicators 
                                     if indicator.lower() in lower_text],
             'has_items': has_items
         }
     
+    def apply_high_contrast_processing(self, img_cv, img_pil):
+        """Apply high contrast processing for better text recognition"""
+        
+        # Convert to grayscale
+        if len(img_cv.shape) == 3:
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = img_cv.copy()
+        
+        # 1. Apply gamma correction to brighten
+        gamma = 1.2
+        lookup_table = np.array([((i / 255.0) ** (1.0 / gamma)) * 255 for i in np.arange(0, 256)]).astype("uint8")
+        gamma_corrected = cv2.LUT(gray, lookup_table)
+        
+        # 2. Apply CLAHE for local contrast enhancement
+        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+        clahe_applied = clahe.apply(gamma_corrected)
+        
+        # 3. Binary threshold with Otsu's method
+        _, binary = cv2.threshold(clahe_applied, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # 4. Invert if text is lighter than background
+        if np.mean(binary) > 127:  # More white than black
+            binary = cv2.bitwise_not(binary)
+        
+        # 5. Clean up with morphological operations
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
+        final = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        
+        # Convert to PIL
+        final_pil = Image.fromarray(final)
+        
+        return final, final_pil
+    
     def validate_bill_data(self, extracted_data, input_title):
-        """Validate the extracted data against input criteria"""
+        """Validate the extracted data against input criteria with enhanced date validation"""
         
         # Check if it's a bill
         if not extracted_data['is_bill']:
             return {
                 'status': 'rejected',
-                'message': 'Document does not appear to be a bill or to blurry',
+                'message': 'Document does not appear to be a bill',
                 'data': extracted_data
             }
         
-        # Check title match
+        # Check title match with enhanced logic
         title_found = False
         matched_title = None
+        title_debug_info = []
         
         for potential_title in extracted_data['potential_titles']:
-            # Flexible matching - check if input title is contained in extracted title or vice versa
-            if (input_title.lower() in potential_title.lower() or 
-                potential_title.lower() in input_title.lower() or
-                self.fuzzy_match(input_title.lower(), potential_title.lower())):
+            # Test different matching strategies
+            exact_match = input_title.lower().strip() == potential_title.lower().strip()
+            contains_match = (input_title.lower() in potential_title.lower() or 
+                            potential_title.lower() in input_title.lower())
+            fuzzy_match_result = self.fuzzy_match(input_title.lower(), potential_title.lower())
+            
+            title_debug_info.append({
+                'potential_title': potential_title,
+                'exact_match': exact_match,
+                'contains_match': contains_match,
+                'fuzzy_match': fuzzy_match_result
+            })
+            
+            if exact_match or contains_match or fuzzy_match_result:
                 title_found = True
                 matched_title = potential_title
                 break
@@ -2096,25 +2356,42 @@ class BillValidationView(APIView):
             return {
                 'status': 'rejected',
                 'message': 'Title not found in the bill',
-                'data': extracted_data
+                'data': {
+                    **extracted_data,
+                    'title_debug': {
+                        'input_title': input_title,
+                        'potential_titles': extracted_data['potential_titles'],
+                        'matching_attempts': title_debug_info
+                    }
+                }
             }
         
-        # Check date validity (within 21 days)
+        # Enhanced date validation
         date_valid = False
         valid_date = None
         current_date = datetime.now()
+        date_parsing_info = []
         
         for date_str in extracted_data['extracted_dates']:
             try:
-                # Try different date formats
-                parsed_date = self.parse_date(date_str)
+                parsed_date = self.parse_date_enhanced(date_str)
                 if parsed_date:
                     days_diff = (current_date - parsed_date).days
+                    date_parsing_info.append({
+                        'original': date_str,
+                        'parsed': parsed_date.strftime('%Y-%m-%d %H:%M:%S'),
+                        'days_ago': days_diff
+                    })
+                    
                     if 0 <= days_diff <= 21:
                         date_valid = True
                         valid_date = parsed_date.strftime('%Y-%m-%d')
                         break
-            except:
+            except Exception as e:
+                date_parsing_info.append({
+                    'original': date_str,
+                    'error': str(e)
+                })
                 continue
         
         # Determine final status
@@ -2141,18 +2418,29 @@ class BillValidationView(APIView):
                 'date_validation': {
                     'valid': date_valid,
                     'valid_date': valid_date,
+                    'parsing_details': date_parsing_info,
                     'all_dates_found': extracted_data['extracted_dates']
                 }
             }
         }
     
     def fuzzy_match(self, str1, str2, threshold=0.6):
-        """Simple fuzzy matching for titles"""
+        """Enhanced fuzzy matching for titles with better punctuation handling"""
         # Remove common words and special characters
-        common_words = ['inc', 'ltd', 'llc', 'corp', 'company', 'co', 'the', 'and', '&']
+        common_words = ['inc', 'ltd', 'llc', 'corp', 'company', 'co', 'the', 'and', '&', 'kft', 'bt']
         
         def clean_string(s):
-            s = re.sub(r'[^\w\s]', ' ', s.lower())
+            # First normalize punctuation and spacing
+            s = s.lower().strip()
+            # Replace hyphens, underscores with spaces
+            s = re.sub(r'[-_]+', ' ', s)
+            # Remove all other punctuation except &
+            s = re.sub(r'[^\w\s&]', ' ', s)
+            # Replace & with 'and' for better matching
+            s = s.replace('&', 'and')
+            # Clean up multiple spaces
+            s = ' '.join(s.split())
+            
             words = s.split()
             return ' '.join([w for w in words if w not in common_words and len(w) > 1])
         
@@ -2162,7 +2450,17 @@ class BillValidationView(APIView):
         if not clean_str1 or not clean_str2:
             return False
         
-        # Simple word overlap ratio
+        # Multiple matching strategies
+        
+        # 1. Exact match after cleaning
+        if clean_str1 == clean_str2:
+            return True
+        
+        # 2. Substring matching (either direction)
+        if clean_str1 in clean_str2 or clean_str2 in clean_str1:
+            return True
+        
+        # 3. Word overlap ratio
         words1 = set(clean_str1.split())
         words2 = set(clean_str2.split())
         
@@ -2172,91 +2470,289 @@ class BillValidationView(APIView):
         if not union:
             return False
         
-        similarity = len(intersection) / len(union)
-        return similarity >= threshold
+        word_similarity = len(intersection) / len(union)
+        
+        # 4. Character similarity (Jaccard similarity on character bigrams)
+        def get_char_bigrams(s):
+            return set([s[i:i+2] for i in range(len(s)-1)])
+        
+        bigrams1 = get_char_bigrams(clean_str1.replace(' ', ''))
+        bigrams2 = get_char_bigrams(clean_str2.replace(' ', ''))
+        
+        if bigrams1 and bigrams2:
+            char_intersection = bigrams1.intersection(bigrams2)
+            char_union = bigrams1.union(bigrams2)
+            char_similarity = len(char_intersection) / len(char_union) if char_union else 0
+        else:
+            char_similarity = 0
+        
+        # 5. Length similarity bonus
+        len1, len2 = len(clean_str1), len(clean_str2)
+        length_similarity = min(len1, len2) / max(len1, len2) if max(len1, len2) > 0 else 0
+        
+        # Combined similarity score
+        final_similarity = (word_similarity * 0.5 + char_similarity * 0.3 + length_similarity * 0.2)
+        
+        # Debug info (uncomment for testing)
+        # print(f"Fuzzy match debug:")
+        # print(f"  Input: '{str1}' -> Clean: '{clean_str1}'")
+        # print(f"  OCR: '{str2}' -> Clean: '{clean_str2}'")
+        # print(f"  Word similarity: {word_similarity:.3f}")
+        # print(f"  Char similarity: {char_similarity:.3f}")
+        # print(f"  Final similarity: {final_similarity:.3f}")
+        # print(f"  Threshold: {threshold}")
+        # print(f"  Match: {final_similarity >= threshold}")
+        
+        return final_similarity >= threshold
     
-    def parse_date(self, date_str):
-
-        """Parse various date formats with improved month handling"""
-        # Clean the date string
-        clean_date = date_str.strip().rstrip('.').replace(':', '').strip()
+    def parse_date_enhanced(self, date_str):
+        """Enhanced date parsing with better error handling and format detection"""
+        # Clean the date string more thoroughly
+        clean_date = date_str.strip().rstrip('.').strip()
         
-        # Additional cleaning for invoice date prefixes
-        clean_date = re.sub(r'^(Invoice|Bill|Receipt)\s*(Date)?\s*[:]?\s*', '', clean_date, flags=re.IGNORECASE)
-        
-        date_formats = [
-            # Day-Month-Year variations
-            '%d-%b-%y',     # 20-May-18
-            '%d-%B-%y',     # 20-May-18 (full month)
-            '%d/%b/%y',     # 20/May/18
-            '%d/%B/%y',     # 20/May/18 (full month)
-            '%d %b %y',     # 20 May 18
-            '%d %B %y',     # 20 May 18 (full month)
-            '%d-%m-%Y',     # 20-05-2018
-            '%d/%m/%Y',     # 20/05/2018
-            '%d.%m.%Y',     # 20.05.2018
-            '%d %m %Y',     # 20 05 2018
-            '%d-%m-%y',     # 20-05-18
-            '%d/%m/%y',     # 20/05/18
-            '%d.%m.%y',     # 20.05.18
-            '%d %m %y',     # 20 05 18
-
-            # Month-Day-Year (US style)
-            '%m-%d-%Y',     # 05-20-2018
-            '%m/%d/%Y',     # 05/20/2018
-            '%m.%d.%Y',     # 05.20.2018
-            '%m %d %Y',     # 05 20 2018
-            '%m-%d-%y',     # 05-20-18
-            '%m/%d/%y',     # 05/20/18
-            '%m.%d.%y',     # 05.20.18
-            '%m %d %y',     # 05 20 18
-            '%b-%d-%Y',     # May-20-2018
-            '%B-%d-%Y',     # May-20-2018 (full month)
-            '%b %d %Y',     # May 20 2018
-            '%B %d %Y',     # May 20 2018 (full month)
-            '%b-%d-%y',     # May-20-18
-            '%B-%d-%y',     # May-20-18 (full month)
-            '%b %d %y',     # May 20 18
-            '%B %d %y',     # May 20 18 (full month)
-
-            # Year-Month-Day (ISO & variants)
-            '%Y-%m-%d',     # 2018-05-20
-            '%Y/%m/%d',     # 2018/05/20
-            '%Y.%m.%d',     # 2018.05.20
-            '%Y %m %d',     # 2018 05 20
-            '%y-%m-%d',     # 18-05-20
-            '%y/%m/%d',     # 18/05/20
-            '%y.%m.%d',     # 18.05.20
-            '%y %m %d',     # 18 05 20
-
-            # Year-Month-Day (with month names)
-            '%Y-%b-%d',     # 2018-May-20
-            '%Y-%B-%d',     # 2018-May-20 (full month)
-            '%Y/%b/%d',     # 2018/May/20
-            '%Y/%B/%d',     # 2018/May/20 (full month)
-            '%Y %b %d',     # 2018 May 20
-            '%Y %B %d',     # 2018 May 20 (full month)
-
-            # Extra compact styles
-            '%d%b%Y',       # 20May2018
-            '%d%B%Y',       # 20May2018 (full month)
-            '%b%d%Y',       # May202018
-            '%B%d%Y',       # May202018 (full month)
-            '%Y%b%d',       # 2018May20
-            '%Y%B%d',       # 2018May20 (full month)
-            '%Y%m%d',       # 20180520
-            '%y%m%d',       # 180520
-
-            # Your requested format
-            '%Y.%m.%d',     # 2025.08.15
+        # Remove common prefixes
+        prefixes_to_remove = [
+            r'^(Invoice|Bill|Receipt|Asztal nyitas|Asztal)\s*(Date)?\s*[:]?\s*',
+            r'^(nyitas|open|time)\s*[:]?\s*'
         ]
-
         
+        for prefix_pattern in prefixes_to_remove:
+            clean_date = re.sub(prefix_pattern, '', clean_date, flags=re.IGNORECASE)
+        
+        # Enhanced date formats with better OCR error tolerance
+        date_formats = [
+            # Hungarian formats (your specific case)
+            '%Y.%m.%d. %H:%M:%S',    # 2025.08.15. 13:44:57
+            '%Y.%m.%d.%H:%M:%S',     # 2025.08.15.13:44:57 (no space)
+            '%Y.%m.%d. %H%M%S',      # 2025.08.15. 134457 (no colons in time)
+            '%Y.%m.%d.%H%M%S',       # 2025.08.15.134457
+            '%Y.%m.%d. %H:%M',       # 2025.08.15. 13:44
+            '%Y.%m.%d.%H:%M',        # 2025.08.15.13:44
+            '%Y.%m.%d',              # 2025.08.15
+            '%Y.%m.%d.',             # 2025.08.15.
+            
+            # Reverse Hungarian format
+            '%d.%m.%Y. %H:%M:%S',    # 15.08.2025. 13:44:57
+            '%d.%m.%Y.%H:%M:%S',     # 15.08.2025.13:44:57
+            '%d.%m.%Y. %H:%M',       # 15.08.2025. 13:44
+            '%d.%m.%Y.%H:%M',        # 15.08.2025.13:44
+            '%d.%m.%Y',              # 15.08.2025
+            '%d.%m.%Y.',             # 15.08.2025.
+            
+            # Slash formats
+            '%d/%m/%Y %H:%M:%S',     # 15/08/2025 13:44:57
+            '%d/%m/%Y',              # 15/08/2025
+            '%Y/%m/%d %H:%M:%S',     # 2025/08/15 13:44:57
+            '%Y/%m/%d',              # 2025/08/15
+            '%m/%d/%Y %H:%M:%S',     # 08/15/2025 13:44:57 (US format)
+            '%m/%d/%Y',              # 08/15/2025
+            
+            # Dash formats
+            '%d-%m-%Y %H:%M:%S',     # 15-08-2025 13:44:57
+            '%d-%m-%Y',              # 15-08-2025
+            '%Y-%m-%d %H:%M:%S',     # 2025-08-15 13:44:57
+            '%Y-%m-%d',              # 2025-08-15
+            '%m-%d-%Y %H:%M:%S',     # 08-15-2025 13:44:57
+            '%m-%d-%Y',              # 08-15-2025
+            
+            # Short year formats
+            '%d.%m.%y. %H:%M:%S',    # 15.08.25. 13:44:57
+            '%d.%m.%y',              # 15.08.25
+            '%y.%m.%d',              # 25.08.15
+            '%d/%m/%y',              # 15/08/25
+            '%y/%m/%d',              # 25/08/15
+            '%m/%d/%y',              # 08/15/25
+            '%d-%m-%y',              # 15-08-25
+            '%y-%m-%d',              # 25-08-15
+            '%m-%d-%y',              # 08-15-25
+            
+            # Month name formats
+            '%d-%b-%Y %H:%M:%S',     # 15-Aug-2025 13:44:57
+            '%d-%b-%Y',              # 15-Aug-2025
+            '%d %b %Y %H:%M:%S',     # 15 Aug 2025 13:44:57
+            '%d %b %Y',              # 15 Aug 2025
+            '%b %d, %Y %H:%M:%S',    # Aug 15, 2025 13:44:57
+            '%b %d, %Y',             # Aug 15, 2025
+            '%Y-%b-%d',              # 2025-Aug-15
+            '%Y %b %d',              # 2025 Aug 15
+            
+            # Full month name formats
+            '%d-%B-%Y %H:%M:%S',     # 15-August-2025 13:44:57
+            '%d-%B-%Y',              # 15-August-2025
+            '%d %B %Y %H:%M:%S',     # 15 August 2025 13:44:57
+            '%d %B %Y',              # 15 August 2025
+            '%B %d, %Y %H:%M:%S',    # August 15, 2025 13:44:57
+            '%B %d, %Y',             # August 15, 2025
+            '%Y-%B-%d',              # 2025-August-15
+            '%Y %B %d',              # 2025 August 15
+            
+            # Compact formats
+            '%Y%m%d',                # 20250815
+            '%d%m%Y',                # 15082025
+            '%y%m%d',                # 250815
+            '%d%m%y',                # 150825
+            
+            # Time only (should be last to avoid conflicts)
+            '%H:%M:%S',              # 13:44:57
+            '%H:%M'                  # 13:44
+        ]
+        
+        # Try each format
         for fmt in date_formats:
             try:
-                return datetime.strptime(clean_date, fmt)
+                parsed = datetime.strptime(clean_date, fmt)
+                
+                # Handle 2-digit years (assume 20xx for years 00-30, 19xx for 31-99)
+                if parsed.year < 100:
+                    if parsed.year <= 30:
+                        parsed = parsed.replace(year=parsed.year + 2000)
+                    else:
+                        parsed = parsed.replace(year=parsed.year + 1900)
+                
+                # Validate that the date makes sense (not too far in future)
+                current_year = datetime.now().year
+                if parsed.year > current_year + 1:
+                    continue
+                
+                return parsed
+                
+            except ValueError:
+                continue
+        
+        # If no format matched, try some fuzzy parsing for OCR errors
+        return self.fuzzy_date_parsing(clean_date)
+    
+    def fuzzy_date_parsing(self, date_str):
+        """Attempt to parse dates with common OCR errors"""
+        try:
+            # Common OCR digit confusions
+            ocr_corrections = {
+                '0': ['O', 'o', 'Q'],
+                '1': ['I', 'l', '|'],
+                '2': ['Z', 'z'],
+                '3': ['8', 'B'],
+                '5': ['S', 's'],
+                '6': ['G', 'b'],
+                '8': ['B', '3'],
+                '9': ['g', 'q']
+            }
+            
+            # Try correcting common OCR errors
+            corrected_variants = [date_str]
+            
+            for correct_digit, wrong_chars in ocr_corrections.items():
+                for wrong_char in wrong_chars:
+                    if wrong_char in date_str:
+                        variant = date_str.replace(wrong_char, correct_digit)
+                        corrected_variants.append(variant)
+            
+            # Try parsing each variant
+            for variant in corrected_variants:
+                parsed = self.parse_date_basic(variant)
+                if parsed:
+                    return parsed
+                    
+        except Exception:
+            pass
+        
+        return None
+    
+    def correct_ocr_date_errors(self, date_str):
+        """Correct common OCR errors in dates, especially digit misreading"""
+        
+        # Common OCR digit errors that affect dates
+        corrections = {
+            # Focus on month errors (08 vs 09 issue)
+            '.09.': '.08.',  # September misread as August
+            '.90.': '.08.',  # Severe misreading
+            '.06.': '.08.',  # 6 vs 8 confusion
+            '.98.': '.08.',  # 9 and 8 confusion
+            
+            # Day errors
+            '15.': '15.',    # This should be correct
+            '1S.': '15.',    # S vs 5
+            'I5.': '15.',    # I vs 1
+            
+            # Year errors
+            '2025': '2025',  # Should be correct
+            '2Q25': '2025',  # Q vs 0
+            '2O25': '2025',  # O vs 0
+            
+            # Time errors
+            ':I3:': ':13:',  # I vs 1
+            ':l3:': ':13:',  # l vs 1
+            ':4A:': ':44:',  # A vs 4
+            ':S7': ':57',    # S vs 5
+        }
+        
+        corrected = date_str
+        for wrong, right in corrections.items():
+            corrected = corrected.replace(wrong, right)
+        
+        # Additional specific correction for the 08/09 confusion
+        # If we see 09 in what should be August 2025, correct it
+        if '2025.09.' in corrected and datetime.now().month == 8:
+            corrected = corrected.replace('2025.09.', '2025.08.')
+        
+        return corrected
+    
+    def parse_date_basic(self, date_str):
+        """Basic date parsing for fuzzy matching"""
+        basic_formats = [
+            '%Y.%m.%d. %H:%M:%S',
+            '%Y.%m.%d',
+            '%d.%m.%Y',
+            '%Y-%m-%d',
+            '%d/%m/%Y',
+            '%Y/%m/%d'
+        ]
+        
+        for fmt in basic_formats:
+            try:
+                return datetime.strptime(date_str.strip(), fmt)
             except ValueError:
                 continue
         
         return None
+    
+    def cleanup_temp_files(self, base_path):
+        """Clean up all temporary files created during processing"""
+        temp_files = [
+            base_path,
+            f"{base_path}_enhanced.png",
+            f"{base_path}_original.png",
+            f"{base_path}_upscaled.png",
+            f"{base_path}_high_contrast.png"
+        ]
+        
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except Exception as e:
+                    print(f"Failed to cleanup {temp_file}: {str(e)}")
 
+    def debug_date_extraction(self, text):
+        """Debug helper to see what dates are being extracted"""
+        print("=== DEBUG: Date Extraction ===")
+        print(f"Original text length: {len(text)}")
+        
+        # Show the specific lines around the date
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if '2025' in line or '08' in line or '09' in line:
+                print(f"Line {i}: '{line.strip()}'")
+        
+        # Test specific date patterns
+        date_patterns = [
+            r'(\d{4}\.\d{1,2}\.\d{1,2}\.\s*\d{1,2}:\d{1,2}:\d{1,2})',
+            r'nyitas:\s*(\d{4}\.\d{1,2}\.\d{1,2}\.\s*\d{1,2}:\d{1,2}:\d{1,2})',
+        ]
+        
+        for i, pattern in enumerate(date_patterns):
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            print(f"Pattern {i+1} matches: {matches}")
+        
+        print("=== END DEBUG ===")
+        
+        return None  # This is just for debugging

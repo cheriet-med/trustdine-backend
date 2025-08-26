@@ -469,6 +469,9 @@ class Order(models.Model):
     category = models.CharField(max_length=500,blank=True, null=True)
     cancellation_policy = models.CharField(max_length=500,blank=True, null=True)
     location = models.CharField(max_length=500,blank=True, null=True)
+    user_owner = models.CharField(max_length=500,blank=True, null=True)
+
+
 
     def __str__(self):
         return f"Order #{self.id}"
