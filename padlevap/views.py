@@ -24,7 +24,6 @@ from django.views.generic import TemplateView
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.permissions import IsAuthenticated
 from .tasks import send_second_email
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -32,7 +31,6 @@ from .utils import *
 
 
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework import status
 from django.core.files.storage import default_storage
 
 import pytesseract
@@ -43,6 +41,31 @@ import os
 import tempfile
 import cv2
 import numpy as np
+
+
+
+
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.db import transaction
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from django.contrib.auth import get_user_model
+from django.db.models import Q, Prefetch
+from django.utils import timezone
+from .models import Message, ChatRoom, OnlineUser
+
+
+User = get_user_model()
+
+
+
+
 
 
 
@@ -2756,3 +2779,463 @@ class BillValidationView(APIView):
         print("=== END DEBUG ===")
         
         return None  #end
+
+
+
+
+
+
+
+
+
+
+
+
+# for social media login
+
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def email_login_or_register(request):
+    """
+    API endpoint that accepts an email and either:
+    - Logs in the user if they exist
+    - Creates a new user if they don't exist
+    Returns user data and authentication tokens
+    """
+    email = request.data.get('email')
+    
+    if not email:
+        return Response(
+            {'error': 'Email is required'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Normalize email
+    email = UserAccount.objects.normalize_email(email)
+    
+    try:
+        # Check if user exists
+        user = UserAccount.objects.get(email=email)
+        
+        # User exists - handle login
+        if not user.is_active:
+            return Response(
+                {'error': 'Account is deactivated'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
+        access_token = refresh.access_token
+        
+        # Serialize user data
+        serializer = UserAccountSerializer(user)
+        
+        return Response({
+            'message': 'Login successful',
+            'user_exists': True,
+            'user': serializer.data,
+            'tokens': {
+                'access': str(access_token),
+                'refresh': str(refresh),
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except UserAccount.DoesNotExist:
+        # User doesn't exist - create new user
+        try:
+            with transaction.atomic():
+                # Filter out email from extra fields to avoid duplicate argument
+                extra_fields = {k: v for k, v in request.data.items() 
+                               if k != 'email' and v is not None}
+                
+                # Create new user with email only
+                user = UserAccount.objects.create_user(
+                    email=email,
+                    password=None,  # No password for email-only registration
+                    **extra_fields  # Include any additional fields from request
+                )
+                
+                # Generate tokens for new user
+                refresh = RefreshToken.for_user(user)
+                access_token = refresh.access_token
+                
+                # Serialize user data
+                serializer = UserAccountSerializer(user)
+                
+                logger.info(f"New user created with email: {email}")
+                
+                return Response({
+                    'message': 'User created successfully',
+                    'user_exists': False,
+                    'user': serializer.data,
+                    'tokens': {
+                        'access': str(access_token),
+                        'refresh': str(refresh),
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            logger.error(f"Error creating user: {str(e)}")
+            return Response(
+                {'error': 'Failed to create user', 'details': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return Response(
+            {'error': 'An unexpected error occurred'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Alternative class-based view
+from rest_framework.views import APIView
+
+class EmailLoginOrRegisterView(APIView):
+    """
+    Class-based view for email login or register
+    """
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        
+        if not email:
+            return Response(
+                {'error': 'Email is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        email = UserAccount.objects.normalize_email(email)
+        
+        try:
+            user = UserAccount.objects.get(email=email)
+            return self._handle_existing_user(user)
+        except UserAccount.DoesNotExist:
+            return self._create_new_user(email, request.data)
+    
+    def _handle_existing_user(self, user):
+        """Handle login for existing user"""
+        if not user.is_active:
+            return Response(
+                {'error': 'Account is deactivated'}, 
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        refresh = RefreshToken.for_user(user)
+        serializer = UserAccountSerializer(user)
+        
+        return Response({
+            'message': 'Login successful',
+            'user_exists': True,
+            'user': serializer.data,
+            'tokens': {
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+            }
+        }, status=status.HTTP_200_OK)
+    
+    def _create_new_user(self, email, data):
+        """Create new user"""
+        try:
+            with transaction.atomic():
+                # Filter out email and any fields that shouldn't be set during creation
+                allowed_fields = [
+                    'full_name', 'address_line_1', 'address_line_2', 'city', 
+                    'state', 'postalCode', 'countryCode', 'phoneNumber', 
+                    'username', 'title', 'location', 'about', 'pets', 
+                    'born', 'time_spend', 'want_to_go', 'obsessed', 
+                    'website', 'language', 'latitude', 'longtitude', 'types'
+                ]
+                
+                extra_fields = {k: v for k, v in data.items() 
+                               if k in allowed_fields and k != 'email' and v is not None}
+                
+                user = UserAccount.objects.create_user(
+                    email=email,
+                    password=None,
+                    **extra_fields
+                )
+                
+                refresh = RefreshToken.for_user(user)
+                serializer = UserAccountSerializer(user)
+                
+                return Response({
+                    'message': 'User created successfully',
+                    'user_exists': False,
+                    'user': serializer.data,
+                    'tokens': {
+                        'access': str(refresh.access_token),
+                        'refresh': str(refresh),
+                    }
+                }, status=status.HTTP_201_CREATED)
+                
+        except Exception as e:
+            return Response(
+                {'error': 'Failed to create user', 'details': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+
+
+
+
+
+
+# for live chat
+
+
+# chat/views.py
+
+
+class ChatRoomViewSet(viewsets.ModelViewSet):
+    queryset = ChatRoom.objects.filter(is_active=True)
+    permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ChatRoomListSerializer
+        return ChatRoomSerializer
+    
+    def get_queryset(self):
+        """Filter rooms where user is a member"""
+        user = self.request.user
+        return ChatRoom.objects.filter(
+            members=user,
+            is_active=True
+        ).select_related('created_by').prefetch_related(
+            'members',
+            'online_users__user',
+            Prefetch(
+                'messages',
+                queryset=Message.objects.select_related('user').order_by('-timestamp')[:1],
+                to_attr='latest_messages'
+            )
+        )
+    
+    @action(detail=True, methods=['get'])
+    def messages(self, request, pk=None):
+        """Get messages for a specific chat room"""
+        room = self.get_object()
+        
+        # Check if user is member of the room
+        if not room.members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a member of this room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get pagination parameters
+        page_size = int(request.query_params.get('page_size', 50))
+        before = request.query_params.get('before')  # timestamp for pagination
+        
+        messages_query = room.messages.select_related('user').filter(is_deleted=False)
+        
+        if before:
+            try:
+                before_dt = timezone.datetime.fromisoformat(before.replace('Z', '+00:00'))
+                messages_query = messages_query.filter(timestamp__lt=before_dt)
+            except ValueError:
+                pass
+        
+        messages = messages_query.order_by('-timestamp')[:page_size]
+        messages = list(reversed(messages))  # Chronological order
+        
+        serializer = MessageSerializer(messages, many=True, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def send_message(self, request, pk=None):
+        """Send a message to a specific chat room via REST API"""
+        room = self.get_object()
+        
+        # Check if user is member of the room
+        if not room.members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a member of this room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        serializer = CreateMessageSerializer(
+            data=request.data, 
+            context={'request': request}
+        )
+        
+        if serializer.is_valid():
+            message = serializer.save(room=room)
+            response_serializer = MessageSerializer(message, context={'request': request})
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=True, methods=['post'])
+    def join(self, request, pk=None):
+        """Join a chat room"""
+        room = self.get_object()
+        
+        if room.is_private:
+            return Response(
+                {'error': 'Cannot join private room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        room.members.add(request.user)
+        
+        return Response({'message': 'Successfully joined room'})
+    
+    @action(detail=True, methods=['post'])
+    def leave(self, request, pk=None):
+        """Leave a chat room"""
+        room = self.get_object()
+        room.members.remove(request.user)
+        
+        # Remove from online users
+        OnlineUser.objects.filter(user=request.user, room=room).delete()
+        
+        return Response({'message': 'Successfully left room'})
+    
+    @action(detail=True, methods=['get'])
+    def members(self, request, pk=None):
+        """Get room members"""
+        room = self.get_object()
+        
+        if not room.members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a member of this room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        from .serializers import UserSerializer
+        members = room.members.all()
+        serializer = UserSerializer(members, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'])
+    def online_users(self, request, pk=None):
+        """Get online users in room"""
+        room = self.get_object()
+        
+        if not room.members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a member of this room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Clean up old online users (older than 5 minutes)
+        five_minutes_ago = timezone.now() - timezone.timedelta(minutes=5)
+        OnlineUser.objects.filter(
+            room=room,
+            last_seen__lt=five_minutes_ago
+        ).delete()
+        
+        online_users = OnlineUser.objects.filter(room=room).select_related('user')
+        serializer = OnlineUserSerializer(online_users, many=True)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['post'])
+    def mark_online(self, request, pk=None):
+        """Mark user as online in room"""
+        room = self.get_object()
+        
+        if not room.members.filter(id=request.user.id).exists():
+            return Response(
+                {'error': 'You are not a member of this room'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        online_user, created = OnlineUser.objects.get_or_create(
+            user=request.user,
+            room=room
+        )
+        online_user.save()  # Updates last_seen
+        
+        return Response({'message': 'Marked as online'})
+
+class MessageViewSet(viewsets.ModelViewSet):
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter messages by rooms where user is a member"""
+        user_rooms = ChatRoom.objects.filter(members=self.request.user)
+        return Message.objects.filter(
+            room__in=user_rooms,
+            is_deleted=False
+        ).select_related('user', 'room').order_by('-timestamp')
+    
+    def perform_create(self, serializer):
+        """Set the user to the current authenticated user"""
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark message as read"""
+        message = self.get_object()
+        message.read_by.add(request.user)
+        return Response({'message': 'Message marked as read'})
+    
+    @action(detail=True, methods=['post'])
+    def edit(self, request, pk=None):
+        """Edit a message"""
+        message = self.get_object()
+        
+        if message.user != request.user:
+            return Response(
+                {'error': 'Can only edit your own messages'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        content = request.data.get('content')
+        if not content:
+            return Response(
+                {'error': 'Content is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        message.content = content
+        message.is_edited = True
+        message.edited_at = timezone.now()
+        message.save()
+        
+        serializer = MessageSerializer(message, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['delete'])
+    def soft_delete(self, request, pk=None):
+        """Soft delete a message"""
+        message = self.get_object()
+        
+        if message.user != request.user:
+            return Response(
+                {'error': 'Can only delete your own messages'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        message.is_deleted = True
+        message.content = '[Message deleted]'
+        message.save()
+        
+        return Response({'message': 'Message deleted'})
+
+# Additional view for searching users to add to rooms
+class UserSearchViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        query = self.request.query_params.get('q', '')
+        if query:
+            return User.objects.filter(
+                Q(email__icontains=query) |
+                Q(full_name__icontains=query) |
+                Q(username__icontains=query)
+            ).filter(is_active=True)[:20]
+        return User.objects.none()
+    
+    def get_serializer_class(self):
+        from .serializers import UserSerializer
+        return UserSerializer

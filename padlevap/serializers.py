@@ -6,6 +6,8 @@ import uuid
 import cloudinary.uploader
 from cloudinary.models import CloudinaryField
 from cloudinary import CloudinaryImage
+from django.conf import settings
+
 
 class UserCreateSerializer(BaseUserCreateSerializer):
     class Meta(BaseUserCreateSerializer.Meta):
@@ -279,3 +281,281 @@ class ReviewScoreSerializer(serializers.ModelSerializer):
         model = ReviewScore
         fields = '__all__'  # Serialize all fields in the model
 
+
+
+class UserAccountSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserAccount
+        fields = [
+            'id', 'email', 'is_active', 'is_staff', 'full_name',
+            'address_line_1', 'address_line_2', 'city', 'state',
+            'postalCode', 'countryCode', 'phoneNumber', 'status',
+            'profile_image', 'username', 'title', 'identity_verified',
+            'location', 'plan', 'about', 'pets', 'born', 'time_spend',
+            'want_to_go', 'obsessed', 'website', 'language',
+            'latitude', 'longtitude', 'joined', 'types'
+        ]
+        read_only_fields = ['id', 'is_active', 'is_staff', 'identity_verified']
+
+
+
+
+
+
+# for live chat 
+
+# chat/serializers.py
+
+
+
+
+# Get the custom user model
+User = settings.AUTH_USER_MODEL
+from django.contrib.auth import get_user_model
+UserModel = get_user_model()
+
+class UserSerializer(serializers.ModelSerializer):
+    """Serializer for user information in chat"""
+    display_name = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserModel
+        fields = [
+            'id', 
+            'email', 
+            'full_name', 
+            'username',
+            'display_name',
+            'avatar',
+            'profile_image',
+            'is_active',
+            'title',
+            'location'
+        ]
+        read_only_fields = fields
+
+    def get_display_name(self, obj):
+        """Return full_name if available, otherwise username or email"""
+        if obj.full_name:
+            return obj.full_name
+        elif obj.username:
+            return obj.username
+        return obj.email.split('@')[0]
+
+    def get_avatar(self, obj):
+        """Return profile image URL or None"""
+        if obj.profile_image:
+            return obj.profile_image.url
+        return None
+
+class MessageSerializer(serializers.ModelSerializer):
+    """Serializer for chat messages"""
+    user = UserSerializer(read_only=True)
+    user_id = serializers.IntegerField(write_only=True, required=False)
+    replies = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    read_by_users = UserSerializer(source='read_by', many=True, read_only=True)
+    is_read = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Message
+        fields = [
+            'id',
+            'content',
+            'message_type',
+            'timestamp',
+            'edited_at',
+            'is_edited',
+            'is_deleted',
+            'user',
+            'user_id',
+            'room',
+            'parent_message',
+            'replies',
+            'reply_count',
+            'read_by_users',
+            'is_read'
+        ]
+        read_only_fields = ['id', 'timestamp', 'edited_at', 'is_edited']
+
+    def get_replies(self, obj):
+        """Get replies to this message"""
+        if obj.replies.exists():
+            return MessageSerializer(
+                obj.replies.filter(is_deleted=False)[:5], 
+                many=True, 
+                context=self.context
+            ).data
+        return []
+
+    def get_reply_count(self, obj):
+        """Count of replies to this message"""
+        return obj.replies.filter(is_deleted=False).count()
+
+    def get_is_read(self, obj):
+        """Check if current user has read this message"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.read_by.filter(id=request.user.id).exists()
+        return False
+
+    def create(self, validated_data):
+        """Create a new message"""
+        user_id = validated_data.pop('user_id', None)
+        request = self.context.get('request')
+        
+        if user_id:
+            try:
+                user = UserModel.objects.get(id=user_id)
+                validated_data['user'] = user
+            except UserModel.DoesNotExist:
+                raise serializers.ValidationError("User not found")
+        elif request and request.user.is_authenticated:
+            validated_data['user'] = request.user
+        else:
+            raise serializers.ValidationError("User is required")
+        
+        return super().create(validated_data)
+
+class CreateMessageSerializer(serializers.ModelSerializer):
+    """Simplified serializer for creating messages"""
+    class Meta:
+        model = Message
+        fields = ['content', 'message_type', 'parent_message']
+        
+    def create(self, validated_data):
+        """Create message with user from request context"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            validated_data['user'] = request.user
+        else:
+            raise serializers.ValidationError("Authentication required")
+        
+        return super().create(validated_data)
+
+class OnlineUserSerializer(serializers.ModelSerializer):
+    """Serializer for online users"""
+    user = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = OnlineUser
+        fields = ['user', 'last_seen']
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    """Serializer for chat rooms"""
+    created_by = UserSerializer(read_only=True)
+    members = UserSerializer(many=True, read_only=True)
+    member_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True,
+        required=False
+    )
+    latest_message = MessageSerializer(read_only=True)
+    message_count = serializers.SerializerMethodField()
+    online_users = OnlineUserSerializer(many=True, read_only=True)
+    online_count = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ChatRoom
+        fields = [
+            'id',
+            'name',
+            'display_name',
+            'description',
+            'created_at',
+            'created_by',
+            'members',
+            'member_ids',
+            'member_count',
+            'is_private',
+            'is_active',
+            'latest_message',
+            'message_count',
+            'online_users',
+            'online_count',
+            'unread_count'
+        ]
+        read_only_fields = ['id', 'created_at', 'member_count']
+
+    def get_message_count(self, obj):
+        """Count of messages in room"""
+        return obj.messages.filter(is_deleted=False).count()
+
+    def get_online_count(self, obj):
+        """Count of online users"""
+        return obj.online_users.count()
+
+    def get_unread_count(self, obj):
+        """Count of unread messages for current user"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            # Get user's last read message timestamp or room join time
+            # This is a simplified version - you might want to track this differently
+            user_messages = obj.messages.exclude(
+                read_by=request.user
+            ).exclude(
+                user=request.user
+            ).filter(is_deleted=False)
+            return user_messages.count()
+        return 0
+
+    def create(self, validated_data):
+        """Create chat room with members"""
+        member_ids = validated_data.pop('member_ids', [])
+        request = self.context.get('request')
+        
+        if request and request.user.is_authenticated:
+            validated_data['created_by'] = request.user
+        
+        room = super().create(validated_data)
+        
+        # Add members
+        if member_ids:
+            members = UserModel.objects.filter(id__in=member_ids)
+            room.members.set(members)
+        
+        # Add creator as member
+        if request and request.user.is_authenticated:
+            room.members.add(request.user)
+        
+        return room
+
+class ChatRoomListSerializer(serializers.ModelSerializer):
+    """Simplified serializer for listing chat rooms"""
+    created_by = UserSerializer(read_only=True)
+    latest_message = MessageSerializer(read_only=True)
+    member_count = serializers.ReadOnlyField()
+    online_count = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ChatRoom
+        fields = [
+            'id',
+            'name',
+            'display_name',
+            'description',
+            'created_at',
+            'created_by',
+            'member_count',
+            'is_private',
+            'is_active',
+            'latest_message',
+            'online_count',
+            'unread_count'
+        ]
+
+    def get_online_count(self, obj):
+        return obj.online_users.count()
+
+    def get_unread_count(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.messages.exclude(
+                read_by=request.user
+            ).exclude(
+                user=request.user
+            ).filter(is_deleted=False).count()
+        return 0

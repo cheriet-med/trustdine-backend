@@ -3,6 +3,10 @@ from .views import *
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
+router.register(r'chatrooms', ChatRoomViewSet, basename='chatroom')
+router.register(r'messages', MessageViewSet, basename='message')
+router.register(r'users/search', UserSearchViewSet, basename='user-search')
+
 urlpatterns = [
         #path("/", include(router.urls)),
    path('', Index.as_view(), name='index'),
@@ -80,6 +84,9 @@ urlpatterns = [
 
     path('api/validate-bill/', BillValidationView.as_view(), name='validate-bill'),
 
+    path('auth/email-login-register/', email_login_or_register, name='email-login-register'),
+    path('auth/email-login-register-cbv/', EmailLoginOrRegisterView.as_view(), name='email-login-register-cbv'),
+    path('api/chat/', include(router.urls)),
 ]
 
 

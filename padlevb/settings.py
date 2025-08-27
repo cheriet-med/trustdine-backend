@@ -65,7 +65,8 @@ INSTALLED_APPS = [
     'cloudinary',
     'django_celery_beat',
     'django_filters',
-     'social_django',
+    'social_django',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -182,6 +183,16 @@ REST_FRAMEWORK = {
 }
 
 
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+
 SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('JWT',),
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
@@ -233,12 +244,14 @@ DJOSER = {
     'SOCIAL_AUTH_ALLOWED_REDIRECT_URIS': [
         'http://localhost:3000/api/auth/callback/google',  # Add this for local development
         'http://localhost:3000/api/auth/callback/facebook',  # Add Facebook callback for local development
-        'https://trustdine-backend.vercel.app/api/auth/callback/google',  # Add your production domain
-        'https://trustdine-backend.vercel.app/api/auth/callback/facebook',  # Add Facebook callback for production
-        'https://trustdine-frontend.vercel.app/api/auth/callback/google',  # NextAuth default callback
-        'https://trustdine-frontend.vercel.app/api/auth/callback/facebook',  # NextAuth Facebook callback
-        'https://trustdine-backend.vercel.app/auth/o/google-oauth2/',  # Django's endpoint
-        'https://trustdine-backend.vercel.app/auth/o/facebook/',  # Django's Facebook endpoint
+        'https://api.goamico.com/api/auth/callback/google',  # Add your production domain
+        'https://api.goamico.com/api/auth/callback/facebook',  # Add Facebook callback for production
+        'https://goamico.com/api/auth/callback/google',  # NextAuth default callback
+        'https://goamico.com/api/auth/callback/facebook',  # NextAuth Facebook callback
+        'https://www.goamico.com/api/auth/callback/google',  # NextAuth default callback
+        'https://www.goamico.com/api/auth/callback/facebook',  # NextAuth Facebook callback
+        'https://api.goamico.com/auth/o/google-oauth2/',  # Django's endpoint
+        'https://api.goamico.com/auth/o/facebook/',  # Django's Facebook endpoint
         ],
     'SERIALIZERS': {
         'user_create': 'padlevap.serializers.UserCreateSerializer',

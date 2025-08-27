@@ -588,3 +588,125 @@ class test(models.Model):
     title = models.CharField(max_length=200)  # assuming you have a title field
     image_en = CloudinaryField('images', blank=True, null=True)
     
+
+
+
+
+
+
+
+
+
+
+# for live chat
+
+# chat/models.py
+
+
+class ChatRoom(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    display_name = models.CharField(max_length=255, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE, 
+        related_name='created_rooms',
+        null=True,
+        blank=True
+    )
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='chat_rooms',
+        blank=True
+    )
+    is_private = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.display_name or self.name
+
+    @property
+    def member_count(self):
+        return self.members.count()
+
+    @property
+    def latest_message(self):
+        return self.messages.last()
+
+class Message(models.Model):
+    MESSAGE_TYPES = [
+        ('text', 'Text'),
+        ('image', 'Image'),
+        ('file', 'File'),
+        ('system', 'System'),
+    ]
+
+    room = models.ForeignKey(
+        ChatRoom, 
+        on_delete=models.CASCADE, 
+        related_name='messages'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.CASCADE,
+        related_name='messages'
+    )
+    content = models.TextField()
+    message_type = models.CharField(
+        max_length=10, 
+        choices=MESSAGE_TYPES, 
+        default='text'
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    is_edited = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    
+    # For replies/threads
+    parent_message = models.ForeignKey(
+        'self', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        related_name='replies'
+    )
+    
+    # Read receipts
+    read_by = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name='read_messages',
+        blank=True
+    )
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"{self.user.email}: {self.content[:50]}..."
+
+    @property
+    def is_reply(self):
+        return self.parent_message is not None
+
+class OnlineUser(models.Model):
+    """Track online users in chat rooms"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE
+    )
+    room = models.ForeignKey(
+        ChatRoom,
+        on_delete=models.CASCADE,
+        related_name='online_users'
+    )
+    last_seen = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['user', 'room']
+
+    def __str__(self):
+        return f"{self.user.email} in {self.room.name}"
