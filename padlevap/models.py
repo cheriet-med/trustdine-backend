@@ -426,7 +426,7 @@ class ReviewReport(models.Model):
 
 
 class ReviewScore(models.Model):
-    review = models.ForeignKey(ProductReview, related_name="score", on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, related_name="score", on_delete=models.CASCADE)
     user = models.ForeignKey(UserAccount, related_name='user_reviews_score', on_delete=models.CASCADE)
     clean = models.CharField(max_length=1000, blank=True, null=True)
     blur = models.CharField(max_length=1000, blank=True, null=True)
