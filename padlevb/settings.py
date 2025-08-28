@@ -242,17 +242,26 @@ DJOSER = {
     #'SEND_ACTIVATION_EMAIL': True,
     'SOCIAL_AUTH_TOKEN_STRATEGY': 'djoser.social.token.jwt.TokenStrategy',
     'SOCIAL_AUTH_ALLOWED_REDIRECT_URIS': [
-        'http://localhost:3000/api/auth/callback/google',  # Add this for local development
-        'http://localhost:3000/api/auth/callback/facebook',  # Add Facebook callback for local development
-        'https://api.goamico.com/api/auth/callback/google',  # Add your production domain
-        'https://api.goamico.com/api/auth/callback/facebook',  # Add Facebook callback for production
-        'https://goamico.com/api/auth/callback/google',  # NextAuth default callback
-        'https://goamico.com/api/auth/callback/facebook',  # NextAuth Facebook callback
-        'https://www.goamico.com/api/auth/callback/google',  # NextAuth default callback
-        'https://www.goamico.com/api/auth/callback/facebook',  # NextAuth Facebook callback
-        'https://api.goamico.com/auth/o/google-oauth2/',  # Django's endpoint
-        'https://api.goamico.com/auth/o/facebook/',  # Django's Facebook endpoint
-        ],
+        # Local development (NextAuth)
+        'http://localhost:3000/api/auth/callback/google',
+        'http://localhost:3000/api/auth/callback/facebook',
+
+        # Production (NextAuth)
+        'https://goamico.com/api/auth/callback/google',
+        'https://goamico.com/api/auth/callback/facebook',
+        'https://www.goamico.com/api/auth/callback/google',
+        'https://www.goamico.com/api/auth/callback/facebook',
+
+        # API subdomain
+        'https://api.goamico.com/api/auth/callback/google',
+        'https://api.goamico.com/api/auth/callback/facebook',
+
+        # Django OAuth endpoints (direct login)
+        'http://localhost:3000/auth/o/google-oauth2/',
+        'http://localhost:3000/auth/o/facebook/',
+        'https://api.goamico.com/auth/o/google-oauth2/',
+        'https://api.goamico.com/auth/o/facebook/',
+    ],
     'SERIALIZERS': {
         'user_create': 'padlevap.serializers.UserCreateSerializer',
         'user': 'padlevap.serializers.InformationsSerializer',
