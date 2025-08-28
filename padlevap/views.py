@@ -955,7 +955,7 @@ class ReviewScoreGlobal(mixins.ListModelMixin,
                 filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
                 #filterset_fields = ['category']  # Exact match filtering
                 filterset_fields = {
-                'review', 'user', 'clean', 'blur', 'verified', 'fake', 'total' # Allows searching multiple names
+                'product', 'user', 'clean', 'blur', 'verified', 'fake', 'total' # Allows searching multiple names
                 }
 
                 def post(self, request, *args, **kwargs):

@@ -75,7 +75,7 @@ urlpatterns = [
    path('reviewreport/', ReviewReportGlobal.as_view(), name='Languages'),
    path('reviewreportid/<int:pk>', ReviewReportid.as_view()),
 
-   path('score/', ReviewScoreGlobal.as_view(), name='Languages'),
+   path('score/', ReviewScoreGlobal.as_view(), name='Score'),
    path('scoreid/<int:pk>', ReviewScoreid.as_view()),
 
 
