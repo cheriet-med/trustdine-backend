@@ -332,3 +332,16 @@ pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://api.goamico.com',
+    'https://goamico.com',
+    'https://www.goamico.com',
+]
+
+# Also ensure CSRF protection is properly configured
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+# Ensure Django knows it's behind HTTPS
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
