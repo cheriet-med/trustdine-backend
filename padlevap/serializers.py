@@ -7,6 +7,7 @@ import cloudinary.uploader
 from cloudinary.models import CloudinaryField
 from cloudinary import CloudinaryImage
 from django.conf import settings
+from django.contrib.auth import get_user_model
 
 
 class UserCreateSerializer(BaseUserCreateSerializer):
@@ -302,9 +303,38 @@ class UserAccountSerializer(serializers.ModelSerializer):
 
 
 
+
+
+
 # for live chat 
 
-# chat/serializers.py
+User = get_user_model()  # This will get your custom user model
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'full_name', 'profile_image']  # Use your custom fields
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    receiver = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = Message
+        fields = ['id', 'sender', 'receiver', 'content', 'timestamp', 'is_read']
+3
+
+
+
+
+
+
+
+
+"""
+
+# for live chat rooms
+
 
 
 
@@ -315,7 +345,7 @@ from django.contrib.auth import get_user_model
 UserModel = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer for user information in chat"""
+   
     display_name = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
     
@@ -336,7 +366,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_display_name(self, obj):
-        """Return full_name if available, otherwise username or email"""
+      
         if obj.full_name:
             return obj.full_name
         elif obj.username:
@@ -344,13 +374,13 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.email.split('@')[0]
 
     def get_avatar(self, obj):
-        """Return profile image URL or None"""
+      
         if obj.profile_image:
             return obj.profile_image.url
         return None
 
 class MessageSerializer(serializers.ModelSerializer):
-    """Serializer for chat messages"""
+   
     user = UserSerializer(read_only=True)
     user_id = serializers.IntegerField(write_only=True, required=False)
     replies = serializers.SerializerMethodField()
@@ -380,7 +410,7 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'timestamp', 'edited_at', 'is_edited']
 
     def get_replies(self, obj):
-        """Get replies to this message"""
+       
         if obj.replies.exists():
             return MessageSerializer(
                 obj.replies.filter(is_deleted=False)[:5], 
@@ -390,18 +420,18 @@ class MessageSerializer(serializers.ModelSerializer):
         return []
 
     def get_reply_count(self, obj):
-        """Count of replies to this message"""
+      
         return obj.replies.filter(is_deleted=False).count()
 
     def get_is_read(self, obj):
-        """Check if current user has read this message"""
+      
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.read_by.filter(id=request.user.id).exists()
         return False
 
     def create(self, validated_data):
-        """Create a new message"""
+       
         user_id = validated_data.pop('user_id', None)
         request = self.context.get('request')
         
@@ -419,13 +449,13 @@ class MessageSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class CreateMessageSerializer(serializers.ModelSerializer):
-    """Simplified serializer for creating messages"""
+   
     class Meta:
         model = Message
         fields = ['content', 'message_type', 'parent_message']
         
     def create(self, validated_data):
-        """Create message with user from request context"""
+        
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             validated_data['user'] = request.user
@@ -435,7 +465,7 @@ class CreateMessageSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class OnlineUserSerializer(serializers.ModelSerializer):
-    """Serializer for online users"""
+   
     user = UserSerializer(read_only=True)
     
     class Meta:
@@ -443,7 +473,7 @@ class OnlineUserSerializer(serializers.ModelSerializer):
         fields = ['user', 'last_seen']
 
 class ChatRoomSerializer(serializers.ModelSerializer):
-    """Serializer for chat rooms"""
+   
     created_by = UserSerializer(read_only=True)
     members = UserSerializer(many=True, read_only=True)
     member_ids = serializers.ListField(
@@ -480,15 +510,15 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'member_count']
 
     def get_message_count(self, obj):
-        """Count of messages in room"""
+       
         return obj.messages.filter(is_deleted=False).count()
 
     def get_online_count(self, obj):
-        """Count of online users"""
+      
         return obj.online_users.count()
 
     def get_unread_count(self, obj):
-        """Count of unread messages for current user"""
+       
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             # Get user's last read message timestamp or room join time
@@ -502,7 +532,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         return 0
 
     def create(self, validated_data):
-        """Create chat room with members"""
+       
         member_ids = validated_data.pop('member_ids', [])
         request = self.context.get('request')
         
@@ -523,7 +553,7 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         return room
 
 class ChatRoomListSerializer(serializers.ModelSerializer):
-    """Simplified serializer for listing chat rooms"""
+   
     created_by = UserSerializer(read_only=True)
     latest_message = MessageSerializer(read_only=True)
     member_count = serializers.ReadOnlyField()
@@ -559,3 +589,6 @@ class ChatRoomListSerializer(serializers.ModelSerializer):
                 user=request.user
             ).filter(is_deleted=False).count()
         return 0
+
+
+        """

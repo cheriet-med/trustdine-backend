@@ -58,7 +58,7 @@ from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Prefetch
 from django.utils import timezone
-from .models import Message, ChatRoom, OnlineUser
+from django.db.models import Q, Max  # Make sure Max is imported here
 
 
 User = get_user_model()
@@ -2990,8 +2990,7 @@ class EmailLoginOrRegisterView(APIView):
 # for live chat
 
 
-# chat/views.py
-
+"""
 
 class ChatRoomViewSet(viewsets.ModelViewSet):
     queryset = ChatRoom.objects.filter(is_active=True)
@@ -3003,7 +3002,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         return ChatRoomSerializer
     
     def get_queryset(self):
-        """Filter rooms where user is a member"""
+       
         user = self.request.user
         return ChatRoom.objects.filter(
             members=user,
@@ -3020,7 +3019,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):
-        """Get messages for a specific chat room"""
+        
         room = self.get_object()
         
         # Check if user is member of the room
@@ -3051,7 +3050,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
-        """Send a message to a specific chat room via REST API"""
+       
         room = self.get_object()
         
         # Check if user is member of the room
@@ -3075,7 +3074,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
-        """Join a chat room"""
+      
         room = self.get_object()
         
         if room.is_private:
@@ -3089,8 +3088,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         return Response({'message': 'Successfully joined room'})
     
     @action(detail=True, methods=['post'])
-    def leave(self, request, pk=None):
-        """Leave a chat room"""
+    def leave(self, request, pk=None): 
         room = self.get_object()
         room.members.remove(request.user)
         
@@ -3101,7 +3099,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def members(self, request, pk=None):
-        """Get room members"""
+      
         room = self.get_object()
         
         if not room.members.filter(id=request.user.id).exists():
@@ -3117,7 +3115,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['get'])
     def online_users(self, request, pk=None):
-        """Get online users in room"""
+      
         room = self.get_object()
         
         if not room.members.filter(id=request.user.id).exists():
@@ -3139,7 +3137,7 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def mark_online(self, request, pk=None):
-        """Mark user as online in room"""
+       
         room = self.get_object()
         
         if not room.members.filter(id=request.user.id).exists():
@@ -3161,7 +3159,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filter messages by rooms where user is a member"""
+        
         user_rooms = ChatRoom.objects.filter(members=self.request.user)
         return Message.objects.filter(
             room__in=user_rooms,
@@ -3169,19 +3167,19 @@ class MessageViewSet(viewsets.ModelViewSet):
         ).select_related('user', 'room').order_by('-timestamp')
     
     def perform_create(self, serializer):
-        """Set the user to the current authenticated user"""
+      
         serializer.save(user=self.request.user)
     
     @action(detail=True, methods=['post'])
     def mark_read(self, request, pk=None):
-        """Mark message as read"""
+       
         message = self.get_object()
         message.read_by.add(request.user)
         return Response({'message': 'Message marked as read'})
     
     @action(detail=True, methods=['post'])
     def edit(self, request, pk=None):
-        """Edit a message"""
+       
         message = self.get_object()
         
         if message.user != request.user:
@@ -3207,7 +3205,7 @@ class MessageViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['delete'])
     def soft_delete(self, request, pk=None):
-        """Soft delete a message"""
+      
         message = self.get_object()
         
         if message.user != request.user:
@@ -3241,5 +3239,204 @@ class UserSearchViewSet(viewsets.ReadOnlyModelViewSet):
         return UserSerializer
 
 
+"""
 
-# all fine
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# live chat simple 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_conversations(request):
+    """Get all conversations for the current user"""
+    try:
+        user = request.user
+        
+        # Get latest message for each conversation
+        conversations = Message.objects.filter(
+            Q(sender=user) | Q(receiver=user)
+        ).values('sender', 'receiver').annotate(
+            latest_timestamp=Max('timestamp')
+        ).order_by('-latest_timestamp')
+        
+        # Build conversation list with contact info
+        contacts = []
+        seen_users = set()
+        
+        for conv in conversations:
+            # Get the other user's ID
+            if conv['sender'] == user.id:
+                other_user_id = conv['receiver']
+            else:
+                other_user_id = conv['sender']
+            
+            if other_user_id not in seen_users:
+                try:
+                    other_user = User.objects.get(id=other_user_id)
+                    
+                    # Get the latest message in this conversation
+                    latest_message = Message.objects.filter(
+                        Q(sender=user, receiver=other_user) | 
+                        Q(sender=other_user, receiver=user)
+                    ).latest('timestamp')
+                    
+                    # Count unread messages from this user
+                    unread_count = Message.objects.filter(
+                        sender=other_user, 
+                        receiver=user, 
+                        is_read=False
+                    ).count()
+                    
+                    contacts.append({
+                        'user': UserSerializer(other_user).data,
+                        'last_message': MessageSerializer(latest_message).data,
+                        'unread_count': unread_count
+                    })
+                    seen_users.add(other_user_id)
+                    
+                except (User.DoesNotExist, Message.DoesNotExist):
+                    continue
+        
+        return Response(contacts)
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_messages(request, user_id):
+    """Get messages between current user and specified user"""
+    try:
+        # Convert user_id to integer
+        user_id = int(user_id)
+        other_user = User.objects.get(id=user_id)
+        
+        messages = Message.objects.filter(
+            Q(sender=request.user, receiver=other_user) |
+            Q(sender=other_user, receiver=request.user)
+        ).order_by('timestamp')
+        
+        serializer = MessageSerializer(messages, many=True)
+        return Response(serializer.data)
+        
+    except ValueError:
+        return Response(
+            {'error': 'User ID must be a valid integer'}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except User.DoesNotExist:
+        return Response(
+            {'error': f'User with ID {user_id} not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        return Response(
+            {'error': f'Server error: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+        
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def mark_messages_read(request, user_id):
+    """Mark all messages from a user as read"""
+    try:
+        other_user = User.objects.get(id=user_id)
+        Message.objects.filter(
+            sender=other_user,
+            receiver=request.user,
+            is_read=False
+        ).update(is_read=True)
+        
+        return Response({'status': 'success'})
+        
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'User not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+
+# chat/views.py - add this
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def test_user(request):
+    return Response({
+        'user_id': request.user.id,
+        'email': request.user.email,
+        'full_name': request.user.full_name
+    })
+
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_message(request):
+    """Send a new message via REST API"""
+    sender_id = request.data.get('sender')
+    receiver_id = request.data.get('receiver')
+    content = request.data.get('content')  # Fixed: use consistent variable name
+    
+    # Check if required fields are provided
+    if not sender_id or not receiver_id or not content:
+        return Response(
+            {'error': 'sender, receiver, and content are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # Convert to integers
+        sender_id = int(sender_id)
+        receiver_id = int(receiver_id)
+        
+        # Get user instances from IDs
+        sender_user = User.objects.get(id=sender_id)
+        receiver_user = User.objects.get(id=receiver_id)
+        
+        # Create the message
+        message = Message.objects.create(
+            sender=sender_user,  # Pass user object, not ID
+            receiver=receiver_user,  # Pass user object, not ID
+            content=content
+        )
+        
+        serializer = MessageSerializer(message)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+    except ValueError:
+        return Response(
+            {'error': 'sender and receiver must be valid integers'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except User.DoesNotExist:
+        return Response(
+            {'error': 'Sender or receiver user not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        # Add this to catch any other errors and see what's happening
+        return Response(
+            {'error': f'Server error: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

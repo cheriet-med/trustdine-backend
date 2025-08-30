@@ -3,9 +3,9 @@ from .views import *
 from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
-router.register(r'chatrooms', ChatRoomViewSet, basename='chatroom')
-router.register(r'messages', MessageViewSet, basename='message')
-router.register(r'users/search', UserSearchViewSet, basename='user-search')
+#router.register(r'chatrooms', ChatRoomViewSet, basename='chatroom')
+#router.register(r'messages', MessageViewSet, basename='message')
+#router.register(r'users/search', UserSearchViewSet, basename='user-search')
 
 urlpatterns = [
         #path("/", include(router.urls)),
@@ -87,6 +87,12 @@ urlpatterns = [
     path('auth/email-login-register/', email_login_or_register, name='email-login-register'),
     path('auth/email-login-register-cbv/', EmailLoginOrRegisterView.as_view(), name='email-login-register-cbv'),
     path('api/chat/', include(router.urls)),
+
+path('api/chat/conversations/', get_conversations, name='get_conversations'),
+path('api/chat/messages/<int:user_id>/', get_messages, name='get_messages'),
+path('api/chat/messages/<int:user_id>/read/', mark_messages_read, name='mark_messages_read'),
+path('api/chat/test-user/', test_user, name='test_user'),
+path('api/chat/send/', send_message, name='send_message'),
 ]
 
 
