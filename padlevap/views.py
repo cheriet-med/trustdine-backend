@@ -3790,7 +3790,7 @@ def search_users(request):
             Q(username__icontains=query) |
             Q(first_name__icontains=query) |
             Q(last_name__icontains=query) |
-            Q(email__icontains=query)
+            Q(email=query)
         ).exclude(id=request.user.id)[:10]
         
         serializer = UserSerializer(users, many=True)

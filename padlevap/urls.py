@@ -89,11 +89,11 @@ urlpatterns = [
     path('api/chat/', include(router.urls)),
 
 
-    path('conversations/', get_conversations, name='get_conversations'),
-    path('messages/<int:user_id>/', get_messages, name='get_messages'),
-    path('messages/<int:user_id>/read/', mark_messages_read, name='mark_messages_read'),
-    path('user/<int:user_id>/', get_user_by_id, name='get_user_by_id'),
-    path('search-users/', search_users, name='search_users'),
+    path('api/conversations/', get_conversations, name='get_conversations'),
+    path('api/messages/<int:user_id>/', get_messages, name='get_messages'),
+    path('api/messages/<int:user_id>/read/', mark_messages_read, name='mark_messages_read'),
+    path('api/user/<int:user_id>/', get_user_by_id, name='get_user_by_id'),
+    path('api/search-users/', search_users, name='search_users'),
 ]
 
 
