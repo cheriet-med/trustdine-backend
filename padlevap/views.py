@@ -1848,9 +1848,16 @@ class testReviewid(APIView):
 
 
 
-
-# bill validation
-
+import cv2
+import numpy as np
+import requests
+from PIL import Image
+import tempfile
+import os
+from skimage.metrics import structural_similarity as ssim
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import hashlib
 
 class BillValidationView(APIView):
     parser_classes = (MultiPartParser, FormParser)
@@ -1858,17 +1865,10 @@ class BillValidationView(APIView):
     def post(self, request):
         try:
             # Get input data
-            title = request.data.get('title', '').strip()
             image_file = request.FILES.get('image')
+            reference_image_url = request.data.get('reference_image_url', '').strip()
             
             # Validate inputs
-            if not title:
-                return Response({
-                    'status': 'rejected',
-                    'message': 'Title is required',
-                    'data': {}
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
             if not image_file:
                 return Response({
                     'status': 'rejected',
@@ -1876,8 +1876,15 @@ class BillValidationView(APIView):
                     'data': {}
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Process the image
-            result = self.process_bill_image(image_file, title)
+            if not reference_image_url:
+                return Response({
+                    'status': 'rejected',
+                    'message': 'Reference image URL is required',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Process the image with deep comparison
+            result = self.process_bill_image_with_comparison(image_file, reference_image_url)
             
             return Response(result, status=status.HTTP_200_OK)
             
@@ -1888,51 +1895,592 @@ class BillValidationView(APIView):
                 'data': {}
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    def process_bill_image(self, image_file, input_title):
-        """Process the uploaded image with enhanced preprocessing and multiple OCR attempts"""
-        # Save image temporarily
+    def process_bill_image_with_comparison(self, image_file, reference_url):
+        """Process the uploaded image with deep comparison against reference URL"""
+        
+        # Save uploaded image temporarily
         with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
             for chunk in image_file.chunks():
                 temp_file.write(chunk)
-            temp_file_path = temp_file.name
+            uploaded_image_path = temp_file.name
         
+        # Download reference image
+        reference_image_path = None
         try:
-            # Open and process image
-            image = Image.open(temp_file_path)
+            reference_image_path = self.download_reference_image(reference_url)
             
-            # Check image quality before OCR
-            quality_report = self.check_image_quality(temp_file_path)
-            is_blurry = quality_report.get('is_blurry', False)
+            # Perform deep image comparison
+            comparison_result = self.deep_image_comparison(uploaded_image_path, reference_image_path)
             
-            # Enhanced preprocessing and OCR with debugging
-            best_ocr_result = self.enhanced_ocr_processing(temp_file_path, is_blurry)
-            
-            # Debug date extraction (optional - remove in production)
-            # self.debug_date_extraction(best_ocr_result)
-            
-            # If very little text extracted, check if it's due to blurriness
-            if len(best_ocr_result.strip()) < 20:
+            # If images don't match, return early with comparison details
+            if not comparison_result['images_match']:
                 return {
                     'status': 'rejected',
-                    'message': 'Image is too blurry - extracted very little text',
+                    'message': 'Uploaded image does not match the reference image',
                     'data': {
-                        'extracted_text': best_ocr_result,
-                        'quality_report': quality_report,
-                        'is_bill': True,
-                        'potential_titles': [input_title]
+                        'comparison_details': comparison_result,
+                        'reason': 'image_mismatch'
                     }
                 }
             
-            # Extract and validate bill data
-            extracted_data = self.extract_bill_data(best_ocr_result)
-            validation_result = self.validate_bill_data(extracted_data, input_title)
-            
-            return validation_result
-            
+            # Images match, now process for bill validation
+            try:
+                # Check image quality before OCR
+                quality_report = self.check_image_quality(uploaded_image_path)
+                is_blurry = quality_report.get('is_blurry', False)
+                
+                # Enhanced preprocessing and OCR with debugging
+                best_ocr_result = self.enhanced_ocr_processing(uploaded_image_path, is_blurry)
+                
+                # If very little text extracted, check if it's due to blurriness
+                if len(best_ocr_result.strip()) < 20:
+                    return {
+                        'status': 'rejected',
+                        'message': 'Image is too blurry - extracted very little text',
+                        'data': {
+                            'extracted_text': best_ocr_result,
+                            'quality_report': quality_report,
+                            'is_bill': True,
+                            'comparison_details': comparison_result,
+                            'reason': 'blurry_image'
+                        }
+                    }
+                
+                # Extract and validate bill data
+                extracted_data = self.extract_bill_data(best_ocr_result)
+                validation_result = self.validate_bill_data(extracted_data)
+                
+                # Add comparison details to the result
+                validation_result['data']['comparison_details'] = comparison_result
+                
+                return validation_result
+                
+            except Exception as e:
+                return {
+                    'status': 'rejected',
+                    'message': f'Error processing bill image: {str(e)}',
+                    'data': {
+                        'comparison_details': comparison_result,
+                        'reason': 'processing_error'
+                    }
+                }
+                
         finally:
             # Clean up temporary files
-            self.cleanup_temp_files(temp_file_path)
+            self.cleanup_temp_files(uploaded_image_path)
+            if reference_image_path:
+                self.cleanup_temp_files(reference_image_path)
     
+    def download_reference_image(self, url):
+        """Download reference image from URL"""
+        try:
+            # Add headers to mimic browser request
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()
+            
+            # Check if content is an image
+            content_type = response.headers.get('content-type', '')
+            if not content_type.startswith('image/'):
+                raise ValueError(f"URL does not point to an image. Content-Type: {content_type}")
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    temp_file.write(chunk)
+                return temp_file.name
+                
+        except requests.RequestException as e:
+            raise Exception(f"Failed to download reference image: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error processing reference image: {str(e)}")
+    
+    def deep_image_comparison(self, uploaded_path, reference_path):
+        """Perform deep comparison between uploaded and reference images"""
+        
+        try:
+            # Load images
+            uploaded_img = cv2.imread(uploaded_path)
+            reference_img = cv2.imread(reference_path)
+            
+            if uploaded_img is None or reference_img is None:
+                return {
+                    'images_match': False,
+                    'error': 'Could not load one or both images',
+                    'comparison_score': 0
+                }
+            
+            # 1. Hash-based comparison (fastest check)
+            hash_comparison = self.compare_image_hashes(uploaded_path, reference_path)
+            
+            # 2. Histogram comparison
+            histogram_comparison = self.compare_histograms(uploaded_img, reference_img)
+            
+            # 3. Structural Similarity Index (SSIM)
+            ssim_comparison = self.compare_ssim(uploaded_img, reference_img)
+            
+            # 4. Feature-based comparison (ORB)
+            feature_comparison = self.compare_features(uploaded_img, reference_img)
+            
+            # 5. Template matching
+            template_comparison = self.compare_template_matching(uploaded_img, reference_img)
+            
+            # 6. OCR-based content comparison
+            ocr_comparison = self.compare_ocr_content(uploaded_path, reference_path)
+            
+            # 7. Color distribution comparison
+            color_comparison = self.compare_color_distribution(uploaded_img, reference_img)
+            
+            # Calculate weighted final score
+            final_score = self.calculate_final_similarity_score({
+                'hash': hash_comparison,
+                'histogram': histogram_comparison,
+                'ssim': ssim_comparison,
+                'features': feature_comparison,
+                'template': template_comparison,
+                'ocr': ocr_comparison,
+                'color': color_comparison
+            })
+            
+            # Determine if images match (threshold can be adjusted)
+            match_threshold = 0.7  # 70% similarity threshold
+            images_match = final_score >= match_threshold
+            
+            return {
+                'images_match': images_match,
+                'comparison_score': final_score,
+                'threshold': match_threshold,
+                'detailed_scores': {
+                    'hash_similarity': hash_comparison['similarity'],
+                    'histogram_similarity': histogram_comparison['similarity'],
+                    'ssim_score': ssim_comparison['similarity'],
+                    'feature_matches': feature_comparison['similarity'],
+                    'template_score': template_comparison['similarity'],
+                    'ocr_similarity': ocr_comparison['similarity'],
+                    'color_similarity': color_comparison['similarity']
+                },
+                'analysis_details': {
+                    'hash': hash_comparison,
+                    'histogram': histogram_comparison,
+                    'ssim': ssim_comparison,
+                    'features': feature_comparison,
+                    'template': template_comparison,
+                    'ocr': ocr_comparison,
+                    'color': color_comparison
+                }
+            }
+            
+        except Exception as e:
+            return {
+                'images_match': False,
+                'error': f'Comparison failed: {str(e)}',
+                'comparison_score': 0
+            }
+    
+    def compare_image_hashes(self, img1_path, img2_path):
+        """Compare images using perceptual hashing"""
+        try:
+            # Calculate MD5 hash first (exact match)
+            def get_file_hash(path):
+                with open(path, 'rb') as f:
+                    return hashlib.md5(f.read()).hexdigest()
+            
+            hash1 = get_file_hash(img1_path)
+            hash2 = get_file_hash(img2_path)
+            
+            exact_match = hash1 == hash2
+            
+            # Calculate perceptual hash using average hash
+            def average_hash(image_path, hash_size=16):
+                image = Image.open(image_path)
+                image = image.convert('L').resize((hash_size, hash_size), Image.Resampling.LANCZOS)
+                pixels = np.array(image)
+                avg = pixels.mean()
+                return (pixels > avg).astype(int)
+            
+            ahash1 = average_hash(img1_path)
+            ahash2 = average_hash(img2_path)
+            
+            # Calculate Hamming distance
+            hamming_distance = np.sum(ahash1 != ahash2)
+            max_distance = ahash1.size
+            similarity = 1 - (hamming_distance / max_distance)
+            
+            return {
+                'similarity': 1.0 if exact_match else similarity,
+                'exact_match': exact_match,
+                'hamming_distance': hamming_distance,
+                'perceptual_similarity': similarity
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_histograms(self, img1, img2):
+        """Compare color histograms of images"""
+        try:
+            # Convert to RGB for consistent histogram calculation
+            img1_rgb = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+            img2_rgb = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+            
+            # Calculate histograms for each channel
+            hist1_r = cv2.calcHist([img1_rgb], [0], None, [256], [0, 256])
+            hist1_g = cv2.calcHist([img1_rgb], [1], None, [256], [0, 256])
+            hist1_b = cv2.calcHist([img1_rgb], [2], None, [256], [0, 256])
+            
+            hist2_r = cv2.calcHist([img2_rgb], [0], None, [256], [0, 256])
+            hist2_g = cv2.calcHist([img2_rgb], [1], None, [256], [0, 256])
+            hist2_b = cv2.calcHist([img2_rgb], [2], None, [256], [0, 256])
+            
+            # Compare histograms using multiple methods
+            methods = [cv2.HISTCMP_CORREL, cv2.HISTCMP_CHISQR, cv2.HISTCMP_INTERSECT, cv2.HISTCMP_BHATTACHARYYA]
+            
+            scores = []
+            for method in methods:
+                score_r = cv2.compareHist(hist1_r, hist2_r, method)
+                score_g = cv2.compareHist(hist1_g, hist2_g, method)
+                score_b = cv2.compareHist(hist1_b, hist2_b, method)
+                
+                # Average across channels
+                avg_score = (score_r + score_g + score_b) / 3
+                
+                # Normalize score (correlation method gives values 0-1, others need normalization)
+                if method == cv2.HISTCMP_CORREL:
+                    normalized_score = max(0, avg_score)  # Correlation: higher is better
+                elif method == cv2.HISTCMP_CHISQR:
+                    normalized_score = 1 / (1 + avg_score)  # Chi-square: lower is better
+                elif method == cv2.HISTCMP_INTERSECT:
+                    normalized_score = avg_score / np.sum(hist1_r)  # Intersection: normalize by histogram size
+                else:  # Bhattacharyya
+                    normalized_score = 1 - avg_score  # Bhattacharyya: lower is better
+                
+                scores.append(normalized_score)
+            
+            # Average all methods
+            final_similarity = np.mean(scores)
+            
+            return {
+                'similarity': final_similarity,
+                'method_scores': {
+                    'correlation': scores[0],
+                    'chi_square': scores[1], 
+                    'intersection': scores[2],
+                    'bhattacharyya': scores[3]
+                }
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_ssim(self, img1, img2):
+        """Compare images using Structural Similarity Index"""
+        try:
+            # Convert to grayscale
+            gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+            gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            
+            # Resize to same dimensions for comparison
+            h1, w1 = gray1.shape
+            h2, w2 = gray2.shape
+            
+            # Resize to smaller dimensions for faster computation
+            target_size = (min(w1, w2, 800), min(h1, h2, 600))
+            gray1_resized = cv2.resize(gray1, target_size)
+            gray2_resized = cv2.resize(gray2, target_size)
+            
+            # Calculate SSIM
+            ssim_score, ssim_map = ssim(gray1_resized, gray2_resized, full=True)
+            
+            # Calculate mean SSIM across the image
+            mean_ssim = np.mean(ssim_map)
+            
+            return {
+                'similarity': ssim_score,
+                'mean_ssim': mean_ssim,
+                'image_dimensions': {
+                    'original': (w1, h1, w2, h2),
+                    'compared': target_size
+                }
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_features(self, img1, img2):
+        """Compare images using ORB feature detection and matching"""
+        try:
+            # Convert to grayscale
+            gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+            gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            
+            # Initialize ORB detector
+            orb = cv2.ORB_create(nfeatures=2000)
+            
+            # Find keypoints and descriptors
+            kp1, des1 = orb.detectAndCompute(gray1, None)
+            kp2, des2 = orb.detectAndCompute(gray2, None)
+            
+            if des1 is None or des2 is None:
+                return {'similarity': 0, 'error': 'No features detected in one or both images'}
+            
+            # Match features using BFMatcher
+            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            matches = bf.match(des1, des2)
+            
+            # Sort matches by distance
+            matches = sorted(matches, key=lambda x: x.distance)
+            
+            # Calculate similarity based on good matches
+            good_matches = [m for m in matches if m.distance < 50]  # Threshold for good matches
+            
+            total_features = min(len(kp1), len(kp2))
+            if total_features == 0:
+                similarity = 0
+            else:
+                similarity = len(good_matches) / total_features
+            
+            return {
+                'similarity': min(similarity, 1.0),  # Cap at 1.0
+                'total_matches': len(matches),
+                'good_matches': len(good_matches),
+                'keypoints': (len(kp1), len(kp2)),
+                'avg_distance': np.mean([m.distance for m in matches]) if matches else float('inf')
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_template_matching(self, img1, img2):
+        """Compare images using template matching"""
+        try:
+            # Convert to grayscale
+            gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+            gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+            
+            # Try multiple template matching methods
+            methods = [cv2.TM_CCOEFF_NORMED, cv2.TM_CCORR_NORMED, cv2.TM_SQDIFF_NORMED]
+            
+            scores = []
+            
+            # Template match in both directions
+            for method in methods:
+                # Use smaller image as template
+                if gray1.shape[0] * gray1.shape[1] < gray2.shape[0] * gray2.shape[1]:
+                    template, image = gray1, gray2
+                else:
+                    template, image = gray2, gray1
+                
+                # Resize template if it's larger than image
+                if template.shape[0] > image.shape[0] or template.shape[1] > image.shape[1]:
+                    scale_factor = min(image.shape[0] / template.shape[0], image.shape[1] / template.shape[1]) * 0.9
+                    new_size = (int(template.shape[1] * scale_factor), int(template.shape[0] * scale_factor))
+                    template = cv2.resize(template, new_size)
+                
+                result = cv2.matchTemplate(image, template, method)
+                _, max_val, _, _ = cv2.minMaxLoc(result)
+                
+                if method == cv2.TM_SQDIFF_NORMED:
+                    score = 1 - max_val  # For SQDIFF, lower is better
+                else:
+                    score = max_val
+                
+                scores.append(max(0, score))
+            
+            final_score = np.mean(scores)
+            
+            return {
+                'similarity': final_score,
+                'method_scores': scores,
+                'template_size': template.shape,
+                'image_size': image.shape
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_ocr_content(self, img1_path, img2_path):
+        """Compare OCR content from both images"""
+        try:
+            # Extract text from both images
+            img1_pil = Image.open(img1_path)
+            img2_pil = Image.open(img2_path)
+            
+            text1 = pytesseract.image_to_string(img1_pil, lang='eng', config='--psm 6 --oem 3')
+            text2 = pytesseract.image_to_string(img2_pil, lang='eng', config='--psm 6 --oem 3')
+            
+            # Clean and normalize text
+            def clean_text(text):
+                # Remove extra whitespace and normalize
+                text = ' '.join(text.split())
+                # Remove special characters but keep letters, numbers, and basic punctuation
+                text = re.sub(r'[^\w\s.,:\-/]', ' ', text)
+                return text.lower().strip()
+            
+            clean_text1 = clean_text(text1)
+            clean_text2 = clean_text(text2)
+            
+            if not clean_text1 or not clean_text2:
+                return {'similarity': 0, 'error': 'No text extracted from one or both images'}
+            
+            # 1. Exact text match
+            exact_match = clean_text1 == clean_text2
+            
+            # 2. Jaccard similarity (word overlap)
+            words1 = set(clean_text1.split())
+            words2 = set(clean_text2.split())
+            
+            intersection = words1.intersection(words2)
+            union = words1.union(words2)
+            jaccard_score = len(intersection) / len(union) if union else 0
+            
+            # 3. TF-IDF cosine similarity
+            tfidf_score = 0
+            if clean_text1 and clean_text2:
+                vectorizer = TfidfVectorizer(ngram_range=(1, 2))
+                try:
+                    tfidf_matrix = vectorizer.fit_transform([clean_text1, clean_text2])
+                    cosine_sim = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+                    tfidf_score = cosine_sim
+                except:
+                    pass
+            
+            # 4. Character-level similarity
+            def char_similarity(s1, s2):
+                longer = s1 if len(s1) > len(s2) else s2
+                shorter = s2 if len(s1) > len(s2) else s1
+                
+                if len(longer) == 0:
+                    return 1.0
+                
+                return (len(longer) - self.levenshtein_distance(longer, shorter)) / len(longer)
+            
+            char_sim = char_similarity(clean_text1, clean_text2)
+            
+            # Combine scores
+            final_similarity = (jaccard_score * 0.4 + tfidf_score * 0.4 + char_sim * 0.2)
+            
+            if exact_match:
+                final_similarity = 1.0
+            
+            return {
+                'similarity': final_similarity,
+                'exact_match': exact_match,
+                'jaccard_score': jaccard_score,
+                'tfidf_score': tfidf_score,
+                'character_similarity': char_sim,
+                'text_lengths': (len(clean_text1), len(clean_text2)),
+                'word_counts': (len(words1), len(words2)),
+                'common_words': len(intersection)
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def compare_color_distribution(self, img1, img2):
+        """Compare color distribution between images"""
+        try:
+            # Convert to different color spaces for comprehensive comparison
+            comparisons = []
+            
+            # RGB comparison
+            for i in range(3):  # R, G, B channels
+                hist1 = cv2.calcHist([img1], [i], None, [256], [0, 256])
+                hist2 = cv2.calcHist([img2], [i], None, [256], [0, 256])
+                corr = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+                comparisons.append(max(0, corr))
+            
+            # HSV comparison (more perceptually relevant)
+            hsv1 = cv2.cvtColor(img1, cv2.COLOR_BGR2HSV)
+            hsv2 = cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)
+            
+            for i in range(3):  # H, S, V channels
+                hist1 = cv2.calcHist([hsv1], [i], None, [256], [0, 256])
+                hist2 = cv2.calcHist([hsv2], [i], None, [256], [0, 256])
+                corr = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+                comparisons.append(max(0, corr))
+            
+            # Lab color space comparison
+            lab1 = cv2.cvtColor(img1, cv2.COLOR_BGR2LAB)
+            lab2 = cv2.cvtColor(img2, cv2.COLOR_BGR2LAB)
+            
+            for i in range(3):  # L, a, b channels
+                hist1 = cv2.calcHist([lab1], [i], None, [256], [0, 256])
+                hist2 = cv2.calcHist([lab2], [i], None, [256], [0, 256])
+                corr = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+                comparisons.append(max(0, corr))
+            
+            final_similarity = np.mean(comparisons)
+            
+            return {
+                'similarity': final_similarity,
+                'rgb_scores': comparisons[:3],
+                'hsv_scores': comparisons[3:6],
+                'lab_scores': comparisons[6:9]
+            }
+            
+        except Exception as e:
+            return {'similarity': 0, 'error': str(e)}
+    
+    def calculate_final_similarity_score(self, comparison_results):
+        """Calculate weighted final similarity score from all comparison methods"""
+        
+        # Define weights for each comparison method
+        weights = {
+            'hash': 0.20,        # Hash comparison (good for exact/near-exact matches)
+            'histogram': 0.15,   # Color distribution
+            'ssim': 0.20,        # Structural similarity (very important)
+            'features': 0.20,    # Feature matching (important for content)
+            'template': 0.10,    # Template matching
+            'ocr': 0.10,         # OCR content comparison
+            'color': 0.05        # Additional color analysis
+        }
+        
+        total_score = 0
+        total_weight = 0
+        
+        for method, weight in weights.items():
+            if method in comparison_results and 'similarity' in comparison_results[method]:
+                score = comparison_results[method]['similarity']
+                if score > 0:  # Only include valid scores
+                    total_score += score * weight
+                    total_weight += weight
+        
+        # Normalize by actual weights used
+        final_score = total_score / total_weight if total_weight > 0 else 0
+        
+        # Apply bonus for multiple high-scoring methods
+        high_score_count = sum(1 for method in comparison_results.values() 
+                              if isinstance(method, dict) and method.get('similarity', 0) > 0.8)
+        
+        if high_score_count >= 3:
+            final_score *= 1.1  # 10% bonus
+        
+        return min(final_score, 1.0)  # Cap at 1.0
+    
+    def levenshtein_distance(self, s1, s2):
+        """Calculate Levenshtein distance between two strings"""
+        if len(s1) < len(s2):
+            return self.levenshtein_distance(s2, s1)
+        
+        if len(s2) == 0:
+            return len(s1)
+        
+        previous_row = list(range(len(s2) + 1))
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+        
+        return previous_row[-1]
+    
+    # Keep all existing methods from the original class
     def enhanced_ocr_processing(self, image_path, is_blurry):
         """Apply enhanced preprocessing and multiple OCR attempts"""
         
@@ -2218,17 +2766,14 @@ class BillValidationView(APIView):
         lines = text.strip().split('\n')
         potential_titles = []
         
-
-
-
-
         for i, line in enumerate(lines[:8]):  # Check first 8 lines instead of 5
             clean_line = line.strip()
             # Skip lines that are mostly numbers, dates, or very short
-            if (len(clean_line) > 2 and 
-                not re.match(r'^[\d\s\-\/\.\,\$\:]+$', clean_line) and
-                not re.match(r'^\d{4}\.\d{2}\.\d{2}', clean_line) and
-                len(clean_line) < 50):  # Avoid very long OCR artifacts
+            if (len(clean_line) > 2
+                and not re.match(r'^[\d\s\-\/\.\,\$\:]+$', clean_line)
+                and not re.match(r'^\d{4}\.\d{2}\.\d{2}', clean_line)
+                and len(clean_line) < 50  # Avoid very long OCR artifacts
+                ):
                 potential_titles.append(clean_line)
         
         # Enhanced date extraction with OCR error correction
@@ -2280,7 +2825,7 @@ class BillValidationView(APIView):
             amounts.extend(matches)
         
         # Remove duplicates and clean amounts
-        amounts = list(set([amt.replace('£', '').replace('$', '').replace(',', '').strip() for amt in amounts]))
+        amounts = list(set([amt.replace('£', '').replace('', '').replace(',', '').strip() for amt in amounts]))
         
         # Check if text contains bill indicators (case insensitive)
         lower_text = text.lower()
@@ -2306,86 +2851,17 @@ class BillValidationView(APIView):
             'has_items': has_items
         }
     
-    def apply_high_contrast_processing(self, img_cv, img_pil):
-        """Apply high contrast processing for better text recognition"""
-        
-        # Convert to grayscale
-        if len(img_cv.shape) == 3:
-            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = img_cv.copy()
-        
-        # 1. Apply gamma correction to brighten
-        gamma = 1.2
-        lookup_table = np.array([((i / 255.0) ** (1.0 / gamma)) * 255 for i in np.arange(0, 256)]).astype("uint8")
-        gamma_corrected = cv2.LUT(gray, lookup_table)
-        
-        # 2. Apply CLAHE for local contrast enhancement
-        clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
-        clahe_applied = clahe.apply(gamma_corrected)
-        
-        # 3. Binary threshold with Otsu's method
-        _, binary = cv2.threshold(clahe_applied, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # 4. Invert if text is lighter than background
-        if np.mean(binary) > 127:  # More white than black
-            binary = cv2.bitwise_not(binary)
-        
-        # 5. Clean up with morphological operations
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 1))
-        final = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
-        
-        # Convert to PIL
-        final_pil = Image.fromarray(final)
-        
-        return final, final_pil
-    
-    def validate_bill_data(self, extracted_data, input_title):
-        """Validate the extracted data against input criteria with enhanced date validation"""
+    def validate_bill_data(self, extracted_data):
+        """Validate the extracted data with enhanced date validation"""
         
         # Check if it's a bill
         if not extracted_data['is_bill']:
             return {
                 'status': 'rejected',
                 'message': 'Document does not appear to be a bill',
-                'data': extracted_data
-            }
-        
-        # Check title match with enhanced logic
-        title_found = False
-        matched_title = None
-        title_debug_info = []
-        
-        for potential_title in extracted_data['potential_titles']:
-            # Test different matching strategies
-            exact_match = input_title.lower().strip() == potential_title.lower().strip()
-            contains_match = (input_title.lower() in potential_title.lower() or 
-                            potential_title.lower() in input_title.lower())
-            fuzzy_match_result = self.fuzzy_match(input_title.lower(), potential_title.lower())
-            
-            title_debug_info.append({
-                'potential_title': potential_title,
-                'exact_match': exact_match,
-                'contains_match': contains_match,
-                'fuzzy_match': fuzzy_match_result
-            })
-            
-            if exact_match or contains_match or fuzzy_match_result:
-                title_found = True
-                matched_title = potential_title
-                break
-        
-        if not title_found:
-            return {
-                'status': 'rejected',
-                'message': 'Title not found in the bill',
                 'data': {
                     **extracted_data,
-                    'title_debug': {
-                        'input_title': input_title,
-                        'potential_titles': extracted_data['potential_titles'],
-                        'matching_attempts': title_debug_info
-                    }
+                    'reason': 'not_a_bill'
                 }
             }
         
@@ -2418,32 +2894,27 @@ class BillValidationView(APIView):
                 continue
         
         # Determine final status
-        if title_found and date_valid:
+        if date_valid:
             final_status = 'valid'
             message = 'Bill validation successful'
+            reason = None
         else:
-            final_status = 'suspect'
-            if not date_valid:
-                message = 'Bill date is not within the last 21 days or date not found'
-            else:
-                message = 'Bill validation failed'
+            final_status = 'rejected'
+            message = 'Bill date is not within the last 21 days or date not found'
+            reason = 'invalid_date'
         
         return {
             'status': final_status,
             'message': message,
             'data': {
                 **extracted_data,
-                'title_match': {
-                    'found': title_found,
-                    'input_title': input_title,
-                    'matched_title': matched_title
-                },
                 'date_validation': {
                     'valid': date_valid,
                     'valid_date': valid_date,
                     'parsing_details': date_parsing_info,
                     'all_dates_found': extracted_data['extracted_dates']
-                }
+                },
+                'reason': reason
             }
         }
     
@@ -2495,7 +2966,7 @@ class BillValidationView(APIView):
         
         word_similarity = len(intersection) / len(union)
         
-        # 4. Character similarity (Jaccard similarity on character bigrams)
+        # 4. Character-level similarity (Jaccard similarity on character bigrams)
         def get_char_bigrams(s):
             return set([s[i:i+2] for i in range(len(s)-1)])
         
@@ -2515,16 +2986,6 @@ class BillValidationView(APIView):
         
         # Combined similarity score
         final_similarity = (word_similarity * 0.5 + char_similarity * 0.3 + length_similarity * 0.2)
-        
-        # Debug info (uncomment for testing)
-        # print(f"Fuzzy match debug:")
-        # print(f"  Input: '{str1}' -> Clean: '{clean_str1}'")
-        # print(f"  OCR: '{str2}' -> Clean: '{clean_str2}'")
-        # print(f"  Word similarity: {word_similarity:.3f}")
-        # print(f"  Char similarity: {char_similarity:.3f}")
-        # print(f"  Final similarity: {final_similarity:.3f}")
-        # print(f"  Threshold: {threshold}")
-        # print(f"  Match: {final_similarity >= threshold}")
         
         return final_similarity >= threshold
     
@@ -2562,62 +3023,13 @@ class BillValidationView(APIView):
             '%d.%m.%Y',              # 15.08.2025
             '%d.%m.%Y.',             # 15.08.2025.
             
-            # Slash formats
+            # Additional formats...
             '%d/%m/%Y %H:%M:%S',     # 15/08/2025 13:44:57
             '%d/%m/%Y',              # 15/08/2025
             '%Y/%m/%d %H:%M:%S',     # 2025/08/15 13:44:57
             '%Y/%m/%d',              # 2025/08/15
             '%m/%d/%Y %H:%M:%S',     # 08/15/2025 13:44:57 (US format)
             '%m/%d/%Y',              # 08/15/2025
-            
-            # Dash formats
-            '%d-%m-%Y %H:%M:%S',     # 15-08-2025 13:44:57
-            '%d-%m-%Y',              # 15-08-2025
-            '%Y-%m-%d %H:%M:%S',     # 2025-08-15 13:44:57
-            '%Y-%m-%d',              # 2025-08-15
-            '%m-%d-%Y %H:%M:%S',     # 08-15-2025 13:44:57
-            '%m-%d-%Y',              # 08-15-2025
-            
-            # Short year formats
-            '%d.%m.%y. %H:%M:%S',    # 15.08.25. 13:44:57
-            '%d.%m.%y',              # 15.08.25
-            '%y.%m.%d',              # 25.08.15
-            '%d/%m/%y',              # 15/08/25
-            '%y/%m/%d',              # 25/08/15
-            '%m/%d/%y',              # 08/15/25
-            '%d-%m-%y',              # 15-08-25
-            '%y-%m-%d',              # 25-08-15
-            '%m-%d-%y',              # 08-15-25
-            
-            # Month name formats
-            '%d-%b-%Y %H:%M:%S',     # 15-Aug-2025 13:44:57
-            '%d-%b-%Y',              # 15-Aug-2025
-            '%d %b %Y %H:%M:%S',     # 15 Aug 2025 13:44:57
-            '%d %b %Y',              # 15 Aug 2025
-            '%b %d, %Y %H:%M:%S',    # Aug 15, 2025 13:44:57
-            '%b %d, %Y',             # Aug 15, 2025
-            '%Y-%b-%d',              # 2025-Aug-15
-            '%Y %b %d',              # 2025 Aug 15
-            
-            # Full month name formats
-            '%d-%B-%Y %H:%M:%S',     # 15-August-2025 13:44:57
-            '%d-%B-%Y',              # 15-August-2025
-            '%d %B %Y %H:%M:%S',     # 15 August 2025 13:44:57
-            '%d %B %Y',              # 15 August 2025
-            '%B %d, %Y %H:%M:%S',    # August 15, 2025 13:44:57
-            '%B %d, %Y',             # August 15, 2025
-            '%Y-%B-%d',              # 2025-August-15
-            '%Y %B %d',              # 2025 August 15
-            
-            # Compact formats
-            '%Y%m%d',                # 20250815
-            '%d%m%Y',                # 15082025
-            '%y%m%d',                # 250815
-            '%d%m%y',                # 150825
-            
-            # Time only (should be last to avoid conflicts)
-            '%H:%M:%S',              # 13:44:57
-            '%H:%M'                  # 13:44
         ]
         
         # Try each format
@@ -2778,8 +3190,7 @@ class BillValidationView(APIView):
         
         print("=== END DEBUG ===")
         
-        return None  #end
-
+        return None
 
 
 
@@ -3260,42 +3671,39 @@ class UserSearchViewSet(viewsets.ReadOnlyModelViewSet):
 
 # live chat simple 
 
+logger = logging.getLogger(__name__)
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_conversations(request):
-    """Get all conversations for the current user"""
+    """Get all conversations for the current user with unread counts"""
+    user = request.user
+    
     try:
-        user = request.user
-        
         # Get latest message for each conversation
-        conversations = Message.objects.filter(
+        conversations_subquery = Message.objects.filter(
             Q(sender=user) | Q(receiver=user)
-        ).values('sender', 'receiver').annotate(
+        ).values(
+            'sender', 'receiver'
+        ).annotate(
             latest_timestamp=Max('timestamp')
-        ).order_by('-latest_timestamp')
+        )
         
         # Build conversation list with contact info
         contacts = []
         seen_users = set()
         
-        for conv in conversations:
-            # Get the other user's ID
-            if conv['sender'] == user.id:
-                other_user_id = conv['receiver']
-            else:
-                other_user_id = conv['sender']
+        for conv in conversations_subquery:
+            other_user_id = conv['receiver'] if conv['sender'] == user.id else conv['sender']
             
             if other_user_id not in seen_users:
                 try:
                     other_user = User.objects.get(id=other_user_id)
-                    
-                    # Get the latest message in this conversation
                     latest_message = Message.objects.filter(
                         Q(sender=user, receiver=other_user) | 
                         Q(sender=other_user, receiver=user)
                     ).latest('timestamp')
                     
-                    # Count unread messages from this user
                     unread_count = Message.objects.filter(
                         sender=other_user, 
                         receiver=user, 
@@ -3308,27 +3716,23 @@ def get_conversations(request):
                         'unread_count': unread_count
                     })
                     seen_users.add(other_user_id)
-                    
                 except (User.DoesNotExist, Message.DoesNotExist):
                     continue
         
-        return Response(contacts)
+        # Sort by latest message timestamp
+        contacts.sort(key=lambda x: x['last_message']['timestamp'], reverse=True)
         
+        return Response(contacts)
     except Exception as e:
-        return Response(
-            {'error': str(e)}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        logger.error(f"Error fetching conversations for user {user.id}: {str(e)}")
+        return Response({'error': 'Failed to fetch conversations'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_messages(request, user_id):
     """Get messages between current user and specified user"""
     try:
-        # Convert user_id to integer
-        user_id = int(user_id)
         other_user = User.objects.get(id=user_id)
-        
         messages = Message.objects.filter(
             Q(sender=request.user, receiver=other_user) |
             Q(sender=other_user, receiver=request.user)
@@ -3336,107 +3740,61 @@ def get_messages(request, user_id):
         
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
-        
-    except ValueError:
-        return Response(
-            {'error': 'User ID must be a valid integer'}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
     except User.DoesNotExist:
-        return Response(
-            {'error': f'User with ID {user_id} not found'}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
-        return Response(
-            {'error': f'Server error: {str(e)}'}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        logger.error(f"Error fetching messages: {str(e)}")
+        return Response({'error': 'Failed to fetch messages'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-        
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def mark_messages_read(request, user_id):
     """Mark all messages from a user as read"""
     try:
         other_user = User.objects.get(id=user_id)
-        Message.objects.filter(
+        updated_count = Message.objects.filter(
             sender=other_user,
             receiver=request.user,
             is_read=False
         ).update(is_read=True)
         
-        return Response({'status': 'success'})
-        
+        logger.info(f"Marked {updated_count} messages as read for user {request.user.id}")
+        return Response({'status': 'success', 'updated_count': updated_count})
     except User.DoesNotExist:
-        return Response(
-            {'error': 'User not found'}, 
-            status=status.HTTP_404_NOT_FOUND
-        )
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error marking messages as read: {str(e)}")
+        return Response({'error': 'Failed to mark messages as read'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-
-# chat/views.py - add this
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def test_user(request):
-    return Response({
-        'user_id': request.user.id,
-        'email': request.user.email,
-        'full_name': request.user.full_name
-    })
+def get_user_by_id(request, user_id):
+    """Get user details by ID"""
+    try:
+        user = User.objects.get(id=user_id)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
 
-
-
-
-@api_view(['POST'])
+@api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def send_message(request):
-    """Send a new message via REST API"""
-    sender_id = request.data.get('sender')
-    receiver_id = request.data.get('receiver')
-    content = request.data.get('content')  # Fixed: use consistent variable name
-    
-    # Check if required fields are provided
-    if not sender_id or not receiver_id or not content:
-        return Response(
-            {'error': 'sender, receiver, and content are required'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+def search_users(request):
+    """Search for users to start new conversations"""
+    query = request.GET.get('q', '').strip()
+    if not query:
+        return Response([])
     
     try:
-        # Convert to integers
-        sender_id = int(sender_id)
-        receiver_id = int(receiver_id)
+        users = User.objects.filter(
+            Q(username__icontains=query) |
+            Q(first_name__icontains=query) |
+            Q(last_name__icontains=query) |
+            Q(email__icontains=query)
+        ).exclude(id=request.user.id)[:10]
         
-        # Get user instances from IDs
-        sender_user = User.objects.get(id=sender_id)
-        receiver_user = User.objects.get(id=receiver_id)
-        
-        # Create the message
-        message = Message.objects.create(
-            sender=sender_user,  # Pass user object, not ID
-            receiver=receiver_user,  # Pass user object, not ID
-            content=content
-        )
-        
-        serializer = MessageSerializer(message)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-    except ValueError:
-        return Response(
-            {'error': 'sender and receiver must be valid integers'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    except User.DoesNotExist:
-        return Response(
-            {'error': 'Sender or receiver user not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
     except Exception as e:
-        # Add this to catch any other errors and see what's happening
-        return Response(
-            {'error': f'Server error: {str(e)}'},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+        logger.error(f"Error searching users: {str(e)}")
+        return Response({'error': 'Search failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

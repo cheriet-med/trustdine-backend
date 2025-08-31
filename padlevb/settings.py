@@ -300,7 +300,7 @@ SOCIAL_AUTH_FACEBOOK_PROFILE_EXTRA_PARAMS = {
 #]
 CORS_ORIGIN_ALLOW_ALL = True
 # Allow credentials (optional, only enable if needed)
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
 
 cloudinary.config( 
   cloud_name = os.getenv('CLOUDINARY_CLOUD_NAME'),
