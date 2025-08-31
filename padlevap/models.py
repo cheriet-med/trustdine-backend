@@ -279,6 +279,7 @@ class Product(models.Model):
     chef = models.CharField(max_length=1000,blank=True, null=True)
     rooms_number = models.CharField(max_length=1000,blank=True, null=True)
     image = CloudinaryField('images', blank=True, null=True)
+    receipt = CloudinaryField('images', blank=True, null=True)
     opening_hours_monday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_tuesday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_wednesday = models.CharField(max_length=1000,blank=True, null=True)
