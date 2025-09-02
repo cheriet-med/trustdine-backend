@@ -471,6 +471,7 @@ class Order(models.Model):
     cancellation_policy = models.CharField(max_length=500,blank=True, null=True)
     location = models.CharField(max_length=500,blank=True, null=True)
     user_owner = models.CharField(max_length=500,blank=True, null=True)
+    receipt = models.CharField(max_length=500,blank=True, null=True)
 
 
 
