@@ -1,5 +1,6 @@
 # your_app/email.py
 from djoser import email
+#import email
 
 
 class PasswordResetEmail(email.PasswordResetEmail):
@@ -41,3 +42,6 @@ class UsernameChangedConfirmation(email.UsernameChangedConfirmationEmail):
         context = super().get_context_data()
         context['site_name'] = "padlev.com"
         return context
+
+
+       

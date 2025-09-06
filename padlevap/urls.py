@@ -94,6 +94,7 @@ urlpatterns = [
     path('api/messages/<int:user_id>/read/', mark_messages_read, name='mark_messages_read'),
     path('api/user/<int:user_id>/', get_user_by_id, name='get_user_by_id'),
     path('api/search-users/', search_users, name='search_users'),
+    path("get-ip-info/", get_ip_info, name="get_ip_info"),
 ]
 
 

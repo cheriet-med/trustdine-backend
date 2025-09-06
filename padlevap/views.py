@@ -3798,3 +3798,43 @@ def search_users(request):
     except Exception as e:
         logger.error(f"Error searching users: {str(e)}")
         return Response({'error': 'Search failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+# get geolocation 
+from django.http import JsonResponse
+from ipwhois import IPWhois
+import requests
+import pycountry
+
+
+def get_ip_info(request):
+    try:
+        # Get the client's IP (first from X-Forwarded-For if behind proxy)
+        ip = request.META.get("HTTP_X_FORWARDED_FOR")
+        if ip:
+            ip = ip.split(",")[0]
+        else:
+            ip = request.META.get("REMOTE_ADDR")
+
+        # If you're testing locally, fallback to external detection
+        if ip in ("127.0.0.1", "::1"):
+            ip = requests.get("https://api.ipify.org").text
+
+        # Lookup info
+        obj = IPWhois(ip)
+        result = obj.lookup_rdap()
+
+        # Extract country code
+        country_code = result["network"]["country"]
+        country = pycountry.countries.get(alpha_2=country_code)
+
+        return JsonResponse({
+            "ip": ip,
+            "country_code": country_code,
+            "country_name": country.name if country else "Unknown"
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
