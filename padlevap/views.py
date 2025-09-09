@@ -1103,8 +1103,8 @@ class InformationsGlobal(mixins.ListModelMixin,
                 permission_classes = [IsAuthenticated]
                 queryset = UserAccount.objects.all()
                 serializer_class = InformationsSerializer
-                filter_backends = [SearchFilter]
-                search_fields = ['full_name']
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is c
+                filterset_fields =  ['full_name', 'email']
 
                 def post(self, request, *args, **kwargs):
                     return self.create(request, *args, **kwargs)
