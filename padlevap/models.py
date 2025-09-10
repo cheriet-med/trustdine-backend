@@ -121,6 +121,7 @@ class EmailLetter(models.Model):
     email = models.CharField(max_length=1000,blank=True, null=True)
     message = models.CharField(max_length=1000,blank=True, null=True)
     full_name = models.CharField(max_length=500,blank=True, null=True)
+    is_read = models.BooleanField(default=False)
     subject = models.CharField(max_length=500,blank=True, null=True)
     category = models.CharField(max_length=500,blank=True, null=True)
     language = models.CharField(max_length=500,blank=True, null=True)
@@ -283,7 +284,6 @@ class Product(models.Model):
     rooms_number = models.CharField(max_length=1000,blank=True, null=True)
     image = CloudinaryField('images', blank=True, null=True)
     receipt = CloudinaryField('images', blank=True, null=True)
-    is_inwishlist = models.BooleanField(default=False)
     opening_hours_monday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_tuesday = models.CharField(max_length=1000,blank=True, null=True)
     opening_hours_wednesday = models.CharField(max_length=1000,blank=True, null=True)
@@ -368,6 +368,16 @@ class SendEmailForPassword(models.Model):
 
 
 
+class Wishlist(models.Model):
+    user = models.ForeignKey(UserAccount, on_delete=models.CASCADE, related_name="wishlist")
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="wishlisted_by")
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "product")  # prevent duplicates
+
+    def __str__(self):
+        return f"{self.user.username} - {self.product.name}"
 
 
 

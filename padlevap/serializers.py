@@ -283,6 +283,11 @@ class ReviewScoreSerializer(serializers.ModelSerializer):
         fields = '__all__'  # Serialize all fields in the model
 
 
+class WishlistSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Wishlist
+        fields = '__all__' 
+
 
 class UserAccountSerializer(serializers.ModelSerializer):
     class Meta:

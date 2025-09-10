@@ -3838,3 +3838,33 @@ def get_ip_info(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+
+
+
+
+
+
+# ✅ Toggle (Add/Remove product from wishlist)
+class WishlistToggleView(generics.GenericAPIView):
+    authentication_classes = [TokenAuthentication]
+
+    def post(self, request, product_id):
+        product = get_object_or_404(Product, id=product_id)
+        wishlist_item, created = Wishlist.objects.get_or_create(user=request.user, product=product)
+
+        if not created:
+            wishlist_item.delete()
+            return Response({"message": "Removed from wishlist"}, status=status.HTTP_200_OK)
+
+        return Response({"message": "Added to wishlist"}, status=status.HTTP_201_CREATED)
+
+
+# ✅ List all wishlist items of the logged-in user
+class WishlistListView(generics.ListAPIView):
+    serializer_class = WishlistSerializer
+    authentication_classes = [TokenAuthentication]
+
+    def get_queryset(self):
+        return Wishlist.objects.filter(user=self.request.user).select_related("product")

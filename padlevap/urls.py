@@ -95,6 +95,10 @@ urlpatterns = [
     path('api/user/<int:user_id>/', get_user_by_id, name='get_user_by_id'),
     path('api/search-users/', search_users, name='search_users'),
     path("get-ip-info/", get_ip_info, name="get_ip_info"),
+
+
+    path("wishlist/<int:product_id>/", WishlistToggleView.as_view(), name="wishlist-toggle"),
+    path("wishlist/", WishlistListView.as_view(), name="wishlist-list"),
 ]
 
 
