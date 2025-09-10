@@ -3846,25 +3846,79 @@ def get_ip_info(request):
 
 
 
-# ✅ Toggle (Add/Remove product from wishlist)
+
 class WishlistToggleView(generics.GenericAPIView):
     authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]  # ✅ Require login
 
     def post(self, request, product_id):
+
+        user_id = request.data.get("user_id")
+        if user_id:
+            user = get_object_or_404(User, id=user_id)
+        else:
+            user = request.user
         product = get_object_or_404(Product, id=product_id)
-        wishlist_item, created = Wishlist.objects.get_or_create(user=request.user, product=product)
+
+        # ✅ Ensure wishlist belongs to the authenticated user
+        wishlist_item, created = Wishlist.objects.get_or_create(
+            user=user,
+            product=product
+        )
 
         if not created:
             wishlist_item.delete()
-            return Response({"message": "Removed from wishlist"}, status=status.HTTP_200_OK)
+            return Response(
+                {"message": "Removed from wishlist", "is_in_wishlist": False},
+                status=status.HTTP_200_OK
+            )
 
-        return Response({"message": "Added to wishlist"}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"message": "Added to wishlist", "is_in_wishlist": True},
+            status=status.HTTP_201_CREATED
+        )
 
 
-# ✅ List all wishlist items of the logged-in user
-class WishlistListView(generics.ListAPIView):
-    serializer_class = WishlistSerializer
+
+
+class WishlistListView(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = Wishlist.objects.all()
+                serializer_class = ProductImagesSerializer
+                #filter_backends = [SearchFilter]
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                filterset_fields = {
+                'product', 'id'  # Allows searching multiple names
+                }
+
+                
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = WishlistSerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+class WishlistCheckView(APIView):
     authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        return Wishlist.objects.filter(user=self.request.user).select_related("product")
+    def post(self, request, product_id):
+        user_id = request.data.get("user_id")
+
+        if user_id:
+            user = get_object_or_404(User, id=user_id)
+        else:
+            user = request.user
+
+        product = get_object_or_404(Product, id=product_id)
+
+        exists = Wishlist.objects.filter(user=user, product=product).exists()
+
+        return Response(
+            {"is_in_wishlist": exists},
+            status=status.HTTP_200_OK
+        )

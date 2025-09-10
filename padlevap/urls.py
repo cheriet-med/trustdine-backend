@@ -99,6 +99,8 @@ urlpatterns = [
 
     path("wishlist/<int:product_id>/", WishlistToggleView.as_view(), name="wishlist-toggle"),
     path("wishlist/", WishlistListView.as_view(), name="wishlist-list"),
+    path("wishlist/check/<int:product_id>/", WishlistCheckView.as_view(), name="wishlist-check"),
+
 ]
 
 
