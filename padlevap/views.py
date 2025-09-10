@@ -3849,7 +3849,7 @@ def get_ip_info(request):
 
 class WishlistToggleView(generics.GenericAPIView):
     authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]  # ✅ Require login
+    permission_classes = [IsAuthenticated]  
 
     def post(self, request, product_id):
 
@@ -3860,7 +3860,7 @@ class WishlistToggleView(generics.GenericAPIView):
             user = request.user
         product = get_object_or_404(Product, id=product_id)
 
-        # ✅ Ensure wishlist belongs to the authenticated user
+ 
         wishlist_item, created = Wishlist.objects.get_or_create(
             user=user,
             product=product
@@ -3922,3 +3922,6 @@ class WishlistCheckView(APIView):
             {"is_in_wishlist": exists},
             status=status.HTTP_200_OK
         )
+
+
+#end
