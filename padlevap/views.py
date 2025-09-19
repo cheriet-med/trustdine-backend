@@ -4125,7 +4125,7 @@ def verify_email(request, uidb64, token):
             return JsonResponse({'error': 'Invalid verification link.'}, status=400)
 
         if default_token_generator.check_token(user, token):
-            user.is_active = True
+            user.is_email_verified = True
             user.save()
             return JsonResponse({'message': 'Your email has been verified successfully!'})
         else:
