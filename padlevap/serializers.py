@@ -32,7 +32,7 @@ class InformationsSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'email': {'read_only': True},
             'is_staff': {'read_only': True},
-            'is_active': {'read_only': True},
+            #'is_active': {'read_only': True},
             'is_superuser': {'read_only': True},
         }
 
@@ -275,6 +275,11 @@ class ReviewReportSerializer(serializers.ModelSerializer):
 
 
 
+class VerifySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Verify
+        fields = '__all__'  # Serialize all fields in the model
+
 
 
 class ReviewScoreSerializer(serializers.ModelSerializer):
@@ -301,7 +306,7 @@ class UserAccountSerializer(serializers.ModelSerializer):
             'want_to_go', 'obsessed', 'website', 'language',
             'latitude', 'longtitude', 'joined', 'types'
         ]
-        read_only_fields = ['id', 'is_active', 'is_staff', 'identity_verified']
+        read_only_fields = ['id', 'is_staff']
 
 
 

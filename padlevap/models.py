@@ -23,8 +23,9 @@ class UserAccountManager(BaseUserManager):
 
 class UserAccount(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
+    premium_plan = models.BooleanField(default=False)
     full_name = models.CharField(max_length=1000, blank=True, null=True)
     address_line_1 = models.CharField(max_length=1000, blank=True, null=True)
     address_line_2 = models.CharField(max_length=1000, blank=True, null=True)
@@ -99,6 +100,18 @@ class Languages(models.Model):
 
 
 
+class Verify(models.Model):
+    full_name = models.CharField(max_length=1000,blank=True, null=True)
+    document_type = models.CharField(max_length=500,blank=True, null=True)
+    document_number = models.CharField(max_length=500,blank=True, null=True)
+    document_photo = CloudinaryField('images', blank=True, null=True)
+    selfie_document = CloudinaryField('images', blank=True, null=True)
+    status = models.CharField(max_length=500,blank=True, null=True, default='unverified')
+    date = models.CharField(max_length=500,blank=True, null=True)
+    time = models.CharField(max_length=500,blank=True, null=True)
+
+    def __str__(self):
+        return self.email
 
 
 

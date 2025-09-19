@@ -75,6 +75,9 @@ urlpatterns = [
    path('reviewreport/', ReviewReportGlobal.as_view(), name='Languages'),
    path('reviewreportid/<int:pk>', ReviewReportid.as_view()),
 
+   path('verify/', VerifyGlobal.as_view(), name='verify documents'),
+   path('verifyid/<int:pk>', Verifyid.as_view()),
+
    path('score/', ReviewScoreGlobal.as_view(), name='Score'),
    path('scoreid/<int:pk>', ReviewScoreid.as_view()),
 
@@ -100,6 +103,18 @@ urlpatterns = [
     path("wishlist/<int:product_id>/", WishlistToggleView.as_view(), name="wishlist-toggle"),
     path("wishlist/", WishlistListView.as_view(), name="wishlist-list"),
     path("wishlist/check/<int:product_id>/", WishlistCheckView.as_view(), name="wishlist-check"),
+
+
+    path('verify-email/<str:uidb64>/<str:token>/',  verify_email, name='verify_email'),
+    path('send-verification-email/',  send_verification_email_view, name='send_verification_email'),
+    path('api/send-verification-email/',  api_send_verification_email, name='api_send_verification_email'),
+    path('resend-verification/',  resend_verification, name='resend_verification'),
+    path('verification-success/',  verification_success, name='verification_success'),
+    path('verification-failed/',  verification_failed, name='verification_failed'),
+
+
+    path('test-email-config/', test_email_config, name='test_email_config'),
+
 
 ]
 

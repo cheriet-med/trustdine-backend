@@ -180,6 +180,7 @@ REST_FRAMEWORK = {
         #'rest_framework.authentication.TokenAuthentication',    # Token-based auth
          'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
+
 }
 
 

@@ -936,6 +936,63 @@ class ReviewReportid(APIView):
 
 
 
+#Verify Documents
+
+
+
+class VerifyGlobal(mixins.ListModelMixin,
+                  mixins.CreateModelMixin,
+                  generics.GenericAPIView):
+                authentication_classes = [TokenAuthentication]
+                permission_classes = [IsAuthenticated]
+                queryset = Verify.objects.all()
+                serializer_class = VerifySerializer
+                filter_backends = [DjangoFilterBackend, SearchFilter] # Ensure this is correct
+                #filterset_fields = ['category']  # Exact match filtering
+                
+
+                def post(self, request, *args, **kwargs):
+                    return self.create(request, *args, **kwargs)
+
+                def get(self, request, format=None):
+                    snippets = self.filter_queryset(self.get_queryset()).order_by('-id')
+                    serializer = VerifySerializer(snippets, many=True)
+                    return Response(serializer.data)
+
+
+
+class Verifyid(APIView):
+    """
+    Retrieve, update or delete a snippet instance.
+    """
+    def get_object(self, pk):
+        try:
+            return Verify.objects.get(pk=pk)
+        except Verify.DoesNotExist:
+            raise Http404
+
+    def get(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = VerifySerializer(snippet)
+        return Response(serializer.data)
+
+    def put(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        serializer = VerifySerializer(snippet, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    
+  
+    def delete(self, request, pk, format=None):
+        snippet = self.get_object(pk)
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
 
 
 
@@ -3925,3 +3982,261 @@ class WishlistCheckView(APIView):
 
 
 #end
+
+
+
+
+import json
+import logging
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.sites.shortcuts import get_current_site
+from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from django.conf import settings
+from django.contrib import messages
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from django.core.mail import EmailMessage, BadHeaderError
+
+
+# Import your custom user model
+from .models import UserAccount
+
+logger = logging.getLogger(__name__)
+
+@csrf_exempt
+@require_POST
+def api_send_verification_email(request):
+    """API endpoint to send verification email (no authentication required)"""
+    try:
+        # Parse JSON data
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        
+        email = data.get('email')
+        
+        if not email:
+            return JsonResponse({'error': 'Email is required'}, status=400)
+        
+        try:
+            user = UserAccount.objects.get(email=email)
+            
+            # Check if user is already verified
+            if user.is_active:
+                return JsonResponse({'message': 'Email already verified'}, status=200)
+            
+            # Send verification email
+            if send_verification_email(request, user):
+                return JsonResponse({'message': 'Verification email sent successfully'}, status=200)
+            else:
+                return JsonResponse({'error': 'Failed to send verification email'}, status=500)
+                
+        except UserAccount.DoesNotExist:
+            return JsonResponse({'error': 'User not found'}, status=404)
+            
+    except Exception as e:
+        logger.error(f"Unexpected error in api_send_verification_email: {str(e)}")
+        return JsonResponse({'error': 'Internal server error'}, status=500)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_verification_email_view(request):
+    """API endpoint to send/resend verification email (JWT protected)"""
+    user = request.user
+    
+    # Debug information to help troubleshoot
+    print(f"Authenticated user ID: {user.id}")
+    print(f"Authenticated user email: {user.email}")
+    
+    # Check if user exists in our database
+    try:
+        db_user = UserAccount.objects.get(id=user.id)
+    except UserAccount.DoesNotExist:
+        return JsonResponse({'error': 'User not found in database'}, status=404)
+    
+    # Check if user is already verified
+    if db_user.is_active:
+        return JsonResponse({'message': 'Email already verified'}, status=200)
+    
+    # Send verification email
+    if send_verification_email(request, db_user):
+        return JsonResponse({'message': 'Verification email sent successfully'}, status=200)
+    else:
+        return JsonResponse({'error': 'Failed to send verification email'}, status=500)
+
+def send_verification_email(request, user):
+    """Send verification email to user"""
+    try:
+        current_site = get_current_site(request)
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        verification_link = request.build_absolute_uri(
+            reverse('verify_email', kwargs={'uidb64': uid, 'token': token})
+        )
+        
+        subject = 'Verify Your Email Address'
+        message = render_to_string('registration/verification_email.html', {
+            'user': user,
+            'verification_link': verification_link,
+            'site_name': current_site.name,
+        })
+        
+        # Use send_mail with proper parameters
+        email_sent = send_mail(
+            subject=subject,
+            message='Please verify your email address by clicking the link below:\n\n' + verification_link,
+            html_message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False
+        )
+        
+        # Check if email was sent successfully
+        if email_sent:
+            logger.info(f"Verification email sent to {user.email}")
+            return True
+        else:
+            logger.error(f"Email sending failed for {user.email}: No email was sent")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {user.email}: {str(e)}")
+        return False
+
+
+@csrf_exempt
+def verify_email(request, uidb64, token):
+    """Verify email using token from email link"""
+    try:
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = UserAccount.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, UserAccount.DoesNotExist):
+            return JsonResponse({'error': 'Invalid verification link.'}, status=400)
+
+        if default_token_generator.check_token(user, token):
+            user.is_active = True
+            user.save()
+            return JsonResponse({'message': 'Your email has been verified successfully!'})
+        else:
+            return JsonResponse({'error': 'Invalid or expired verification link.'}, status=400)
+
+    except Exception as e:
+        logger.error(f"Error in verify_email: {str(e)}")
+        logger.error(f"UID: {uidb64}, Token: {token}")
+        return JsonResponse({'error': 'Internal server error during verification.'}, status=500)
+
+
+@csrf_exempt
+def verification_success(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+
+        if not email:
+            return JsonResponse({"error": "Email is required"}, status=400)
+
+        
+        send_mail(
+            subject="Verification Successful",
+            message="Your email has been successfully verified. 🎉",
+            from_email=settings.DEFAULT_FROM_EMAIL,  # must be configured
+            recipient_list=[email],
+            fail_silently=False,  # set True only for testing
+        )
+
+        return JsonResponse({"message": f"Verification success email sent to {email}"})
+
+
+
+
+
+@csrf_exempt
+def verification_failed(request):
+    if request.method == "POST":
+        email = request.POST.get("email")
+
+        if not email:
+            return JsonResponse({"error": "Email is required"}, status=400)
+
+        
+        send_mail(
+            subject="Verification Email",
+            message="Your email has been unverified yet please try again.",
+            from_email=settings.DEFAULT_FROM_EMAIL,  # must be configured
+            recipient_list=[email],
+            fail_silently=False,  # set True only for testing
+        )
+
+        return JsonResponse({"message": f"Verification success email sent to {email}"})
+
+
+
+
+
+
+@csrf_exempt
+def resend_verification(request):
+    """Page to resend verification email (template form, not API)"""
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        try:
+            user = UserAccount.objects.get(email=email)
+            if user.is_active:
+                messages.info(request, 'This email is already verified.')
+            else:
+                if send_verification_email(request, user):
+                    messages.success(request, 'Verification email sent successfully!')
+                else:
+                    messages.error(request, 'Failed to send verification email. Please try again.')
+        except UserAccount.DoesNotExist:
+            messages.error(request, 'No account found with this email address.')
+        
+        return redirect('resend_verification')
+    
+    return render(request, 'registration/resend_verification.html')
+
+
+
+
+
+
+
+
+
+
+    # test email
+
+@csrf_exempt
+@require_POST
+def test_email_config(request):
+    """Test endpoint to check email configuration"""
+    try:
+        data = json.loads(request.body)
+        test_email = data.get('email', 'test@example.com')
+        
+        # Try to send a simple test email
+        email_sent = send_mail(
+            subject='Test Email from Django',
+            message='This is a test email from your Django application.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[test_email],
+            fail_silently=False
+        )
+        
+        if email_sent:
+            return JsonResponse({'message': f'Test email sent successfully to {test_email}'}, status=200)
+        else:
+            return JsonResponse({'error': 'Failed to send test email (returned 0)'}, status=500)
+            
+    except Exception as e:
+        return JsonResponse({'error': f'Failed to send test email: {str(e)}'}, status=500)

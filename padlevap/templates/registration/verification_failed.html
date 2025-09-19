@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Email Verification Failed</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        .error-icon { color: #dc3545; font-size: 48px; margin-bottom: 20px; }
+        .btn { display: inline-block; background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 10px; }
+        .btn-secondary { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-icon">✗</div>
+        <h1>Verification Failed</h1>
+        <p>The verification link is invalid or has expired. This could happen if:</p>
+        <ul style="text-align: left; display: inline-block;">
+            <li>The link has been used already</li>
+            <li>The link has expired (valid for 24 hours)</li>
+            <li>The link was copied incorrectly</li>
+        </ul>
+        <div>
+            <a href="{% url 'resend_verification' %}" class="btn">Request New Verification Email</a>
+            
+        </div>
+    </div>
+</body>
+</html>
