@@ -4031,7 +4031,7 @@ def api_send_verification_email(request):
             user = UserAccount.objects.get(email=email)
             
             # Check if user is already verified
-            if user.is_active:
+            if user.is_email_verified:
                 return JsonResponse({'message': 'Email already verified'}, status=200)
             
             # Send verification email
@@ -4064,7 +4064,7 @@ def send_verification_email_view(request):
         return JsonResponse({'error': 'User not found in database'}, status=404)
     
     # Check if user is already verified
-    if db_user.is_active:
+    if db_user.is_email_verified:
         return JsonResponse({'message': 'Email already verified'}, status=200)
     
     # Send verification email
