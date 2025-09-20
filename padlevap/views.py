@@ -4080,15 +4080,13 @@ def send_verification_email(request, user):
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         
-        verification_link = request.build_absolute_uri(
-            reverse('verify_email', kwargs={'uidb64': uid, 'token': token})
-        )
+        verification_link = f"https://goamico.com/en/verify/{uid}/{token}/"
         
         subject = 'Verify Your Email Address'
         message = render_to_string('registration/verification_email.html', {
             'user': user,
             'verification_link': verification_link,
-            'site_name': current_site.name,
+            'site_name': "https://goamico.com/en",
         })
         
         # Use send_mail with proper parameters

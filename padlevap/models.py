@@ -54,6 +54,7 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     longtitude = models.FloatField(blank=True, null=True) 
     joined = models.CharField(max_length=1000, blank=True, null=True)
     types = models.CharField(max_length=1000, blank=True, null=True)
+    hotel_stars = models.CharField(max_length=1000, blank=True, null=True)
 
 
 
