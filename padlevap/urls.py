@@ -13,7 +13,7 @@ urlpatterns = [
    path('newsletterpost/', NewsLetterPostGlobal.as_view(), name='newsletter-only-post'),
    path('newsletterid/<int:pk>', Newsletterid.as_view()),
    path('emailletterpost/', EmailLetterPostGlobal.as_view(), name='emailletter'),
-   path('emailletterpostid/<int:pk>', EmailLetterPostid.as_view(), name='emailletter-crud'),
+   path('emailletterpostid/<int:pk>', EmailLetterPostid.as_view(), name='email-crud'),
    path('api/user/', UserDetailsView.as_view(), name='user-details'),
    path('post/', PostGlobal.as_view(), name='posts'),
    path('postid/<int:pk>', Postid.as_view()),

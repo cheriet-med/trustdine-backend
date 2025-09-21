@@ -280,7 +280,7 @@ class EmailLetterPostGlobal(mixins.ListModelMixin,
 
 class EmailLetterPostid(APIView):
     """
-    Retrieve, update or delete a snippet instance.
+    Retrieve, update or delete a snippet instance ..
     """
     def get_object(self, pk):
         try:
