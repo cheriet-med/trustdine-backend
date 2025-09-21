@@ -103,6 +103,7 @@ class Languages(models.Model):
 
 
 class Verify(models.Model):
+    user = models.ForeignKey(UserAccount, related_name='verification', on_delete=models.CASCADE)
     full_name = models.CharField(max_length=1000,blank=True, null=True)
     document_type = models.CharField(max_length=500,blank=True, null=True)
     document_number = models.CharField(max_length=500,blank=True, null=True)
