@@ -8,6 +8,7 @@ from cloudinary.models import CloudinaryField
 from cloudinary import CloudinaryImage
 from django.conf import settings
 from django.contrib.auth import get_user_model
+import re
 
 
 class UserCreateSerializer(BaseUserCreateSerializer):
@@ -304,7 +305,7 @@ class UserAccountSerializer(serializers.ModelSerializer):
             'profile_image', 'username', 'title', 'identity_verified',
             'location', 'plan', 'about', 'pets', 'born', 'time_spend',
             'want_to_go', 'obsessed', 'website', 'language',
-            'latitude', 'longtitude', 'joined', 'types'
+            'latitude', 'longtitude', 'joined', 'types', 'is_phone_number_verified', 'is_email_verified'
         ]
         read_only_fields = ['id', 'is_staff']
 
@@ -602,3 +603,41 @@ class ChatRoomListSerializer(serializers.ModelSerializer):
 
 
         """
+
+
+
+class SendPhoneOTPSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    
+    def validate_phone_number(self, value):
+        # Basic phone number validation
+        phone_pattern = r'^\+?[1-9]\d{1,14}$'
+        if not re.match(phone_pattern, value.replace(' ', '').replace('-', '')):
+            raise serializers.ValidationError("Invalid phone number format")
+        
+        # Clean phone number
+        cleaned_phone = value.replace(' ', '').replace('-', '')
+        if not cleaned_phone.startswith('+'):
+            cleaned_phone = '+' + cleaned_phone
+        
+        return cleaned_phone
+
+class VerifyPhoneOTPSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=15)
+    otp_code = serializers.CharField(max_length=6, min_length=4)
+    
+    def validate_phone_number(self, value):
+        phone_pattern = r'^\+?[1-9]\d{1,14}$'
+        if not re.match(phone_pattern, value.replace(' ', '').replace('-', '')):
+            raise serializers.ValidationError("Invalid phone number format")
+        
+        cleaned_phone = value.replace(' ', '').replace('-', '')
+        if not cleaned_phone.startswith('+'):
+            cleaned_phone = '+' + cleaned_phone
+        
+        return cleaned_phone
+    
+    def validate_otp_code(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError("OTP must contain only digits")
+        return value

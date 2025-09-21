@@ -117,6 +117,18 @@ urlpatterns = [
     path('test-email-config/', test_email_config, name='test_email_config'),
 
 
+
+
+
+    path('send-otp/', send_phone_otp, name='send_phone_otp'),
+    path('minimal-send-otp/', minimal_send_otp, name='minimal_send_otp'),
+    path('verify-otp/', verify_phone_otp, name='verify_phone_otp'),
+    path('check-status/', check_phone_verification_status, name='check_phone_status'),
+    path('simple-test/', simple_test, name='simple_test'),
+    path('ultra-simple/', ultra_simple_test, name='ultra_simple_test'),
+
+    path('health/', health_check, name='health_check'),
+
 ]
 
 

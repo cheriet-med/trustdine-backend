@@ -4270,3 +4270,252 @@ def test_email_config(request):
             
     except Exception as e:
         return JsonResponse({'error': f'Failed to send test email: {str(e)}'}, status=500)
+
+
+
+
+
+
+
+
+
+
+
+# For OTP
+
+
+
+from django.utils import timezone  # ADD THIS IMPORT - IT'S MISSING!
+from .serializers import SendPhoneOTPSerializer, VerifyPhoneOTPSerializer
+from .services import PhoneOTPService
+from .models import PhoneOTP
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Replace your send_otp method with this version:
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def send_phone_otp(request):
+    """Send OTP to phone number"""
+    serializer = SendPhoneOTPSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        phone_number = serializer.validated_data['phone_number']
+        
+        # Check rate limiting
+        recent_otps = PhoneOTP.objects.filter(
+            phone_number=phone_number,
+            created_at__gte=timezone.now() - timezone.timedelta(minutes=1)
+        ).count()
+        
+        if recent_otps >= 3:
+            return Response({
+                'success': False,
+                'message': 'Too many OTP requests. Please wait before requesting again.'
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        
+        # Send OTP
+        result = PhoneOTPService.send_otp(phone_number)
+        
+        if result['success']:
+            return Response({
+                'success': True,
+                'message': result['message'],
+                'phone_number': phone_number,
+                'expires_in_seconds': result['expires_in'],
+                'debug_otp': result.get('debug_otp')  # Only in development
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': result['message']
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+    
+# Also create a minimal version that bypasses the service:
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def minimal_send_otp(request):
+    """Minimal send OTP test without service call"""
+    try:
+        serializer = SendPhoneOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            phone_number = serializer.validated_data['phone_number']
+            
+            # Just create OTP without sending SMS
+            try:
+                otp_instance = PhoneOTP.objects.create(phone_number=phone_number)
+                print(f"Created OTP: {otp_instance.otp_code} for {phone_number}")
+                
+                return Response({
+                    'success': True,
+                    'message': 'OTP created successfully (not sent)',
+                    'phone_number': phone_number,
+                    'otp_code': otp_instance.otp_code,  # Only for testing
+                }, status=status.HTTP_200_OK)
+                
+            except Exception as e:
+                print(f"Database error: {e}")
+                return Response({
+                    'success': False,
+                    'message': f'Database error: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        else:
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        print(f"Error in minimal_send_otp: {e}")
+        return Response({
+            'success': False,
+            'message': f'Error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Also, let's create a simple test view to isolate the issue:
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def simple_test(request):
+    """Simple test to check request handling"""
+    try:
+        if request.method == 'GET':
+            return Response({
+                'message': 'GET request working!',
+                'method': request.method,
+            })
+        
+        # For POST requests
+        response_data = {
+            'message': 'POST request received!',
+            'method': request.method,
+        }
+        
+        # Safely get request data
+        try:
+            response_data['received_data'] = request.data
+        except Exception as e:
+            response_data['data_error'] = str(e)
+        
+        # Safely get request body
+        try:
+            response_data['received_body'] = str(request.body)
+        except Exception as e:
+            response_data['body_error'] = str(e)
+        
+        # Safely get content type
+        try:
+            response_data['content_type'] = request.content_type
+        except Exception as e:
+            response_data['content_type_error'] = str(e)
+        
+        # Safely get headers
+        try:
+            response_data['headers'] = dict(request.headers)
+        except Exception as e:
+            response_data['headers_error'] = str(e)
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        # Catch any other errors
+        import traceback
+        return Response({
+            'error': 'Internal server error',
+            'error_message': str(e),
+            'error_type': type(e).__name__,
+            'traceback': traceback.format_exc(),
+        }, status=500)
+
+
+# Also create this ultra-simple test:
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def ultra_simple_test(request):
+    """Ultra simple POST test"""
+    try:
+        return Response({'message': 'POST working!', 'status': 'success'})
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+# Also add this simpler endpoint
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """Simple health check endpoint"""
+    return Response({'status': 'ok', 'message': 'API is working!'})
+
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_phone_otp(request):
+    """Verify OTP code"""
+    serializer = VerifyPhoneOTPSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        phone_number = serializer.validated_data['phone_number']
+        otp_code = serializer.validated_data['otp_code']
+        
+        # Verify OTP
+        result = PhoneOTPService.verify_otp(phone_number, otp_code)
+        
+        if result['success']:
+            return Response({
+                'success': True,
+                'message': result['message'],
+                'phone_number': phone_number,
+                'verified_at': timezone.now().isoformat()
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': result['message']
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    return Response({
+        'success': False,
+        'errors': serializer.errors
+    }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def check_phone_verification_status(request):
+    """Check if phone number is verified"""
+    phone_number = request.GET.get('phone_number')
+    
+    if not phone_number:
+        return Response({
+            'success': False,
+            'message': 'phone_number parameter is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Clean phone number
+    cleaned_phone = phone_number.replace(' ', '').replace('-', '')
+    if not cleaned_phone.startswith('+'):
+        cleaned_phone = '+' + cleaned_phone
+    
+    # Check if phone number has been verified
+    verified_otp = PhoneOTP.objects.filter(
+        phone_number=cleaned_phone,
+        is_verified=True
+    ).first()
+    
+    return Response({
+        'phone_number': cleaned_phone,
+        'is_verified': bool(verified_otp),
+        'last_verified_at': verified_otp.created_at.isoformat() if verified_otp else None
+    }, status=status.HTTP_200_OK)
+

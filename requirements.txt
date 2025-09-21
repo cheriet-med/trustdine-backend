@@ -1,3 +1,7 @@
+aiohappyeyeballs==2.6.1
+aiohttp==3.12.15
+aiohttp-retry==2.9.1
+aiosignal==1.4.0
 amqp==5.3.1
 asgiref==3.9.1
 attrs==25.3.0
@@ -29,6 +33,7 @@ djangorestframework==3.15.2
 djangorestframework_simplejwt==5.4.0
 djoser==2.3.1
 dnspython==2.7.0
+frozenlist==1.7.0
 gunicorn==23.0.0
 hyperlink==21.0.0
 idna==3.10
@@ -40,6 +45,7 @@ kombu==5.5.2
 lazy_loader==0.4
 Markdown==3.7
 msgpack==1.1.1
+multidict==6.6.4
 networkx==3.5
 numpy==2.2.6
 oauthlib==3.2.2
@@ -47,6 +53,7 @@ opencv-python-headless==4.12.0.88
 packaging==24.2
 pillow==11.3.0
 prompt_toolkit==3.0.50
+propcache==0.3.2
 psycopg2-binary==2.9.10
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
@@ -73,6 +80,7 @@ social-auth-core==4.5.6
 sqlparse==0.5.3
 threadpoolctl==3.6.0
 tifffile==2025.8.28
+twilio==9.8.1
 Twisted==25.5.0
 txaio==25.6.1
 typing_extensions==4.15.0
@@ -82,4 +90,5 @@ vine==5.1.0
 wcwidth==0.2.13
 wheel==0.45.1
 whitenoise==6.9.0
+yarl==1.20.1
 zope.interface==7.2

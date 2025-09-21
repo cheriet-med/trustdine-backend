@@ -26,6 +26,7 @@ class UserAccount(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_email_verified = models.BooleanField(default=False)
+    is_phone_number_verified = models.BooleanField(default=False)
     premium_plan = models.BooleanField(default=False)
     full_name = models.CharField(max_length=1000, blank=True, null=True)
     address_line_1 = models.CharField(max_length=1000, blank=True, null=True)
@@ -762,3 +763,46 @@ class OnlineUser(models.Model):
         return f"{self.user.email} in {self.room.name}"
 
         """
+
+import random
+import string
+
+
+class PhoneOTP(models.Model):
+    phone_number = models.CharField(max_length=15, db_index=True)
+    otp_code = models.CharField(max_length=6)
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['phone_number', 'is_verified']),
+        ]
+    
+    def save(self, *args, **kwargs):
+        if not self.otp_code:
+            self.otp_code = self.generate_otp()
+        if not self.expires_at:
+            from django.conf import settings
+            expire_time = getattr(settings, 'PHONE_OTP_EXPIRE_TIME', 300)
+            self.expires_at = timezone.now() + timezone.timedelta(seconds=expire_time)
+        super().save(*args, **kwargs)
+    
+    def generate_otp(self):
+        from django.conf import settings
+        length = getattr(settings, 'PHONE_OTP_LENGTH', 6)
+        return ''.join(random.choices(string.digits, k=length))
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def is_max_attempts_reached(self):
+        from django.conf import settings
+        max_attempts = getattr(settings, 'PHONE_OTP_MAX_ATTEMPTS', 3)
+        return self.attempts >= max_attempts
+    
+    def __str__(self):
+        return f"OTP for {self.phone_number} - {self.otp_code}"
