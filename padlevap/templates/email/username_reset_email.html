@@ -1,11 +1,11 @@
 {% load i18n %}
 
 {% block subject %}
-{% blocktrans %}Username reset on Trustdine {% endblocktrans %}
+{% blocktrans %}Username reset on Goamico {% endblocktrans %}
 {% endblock subject %}
 
 {% block text_body %}
-{% blocktrans %}You're receiving this email because you requested a username reset for your user account at Trustdine.{% endblocktrans %}
+{% blocktrans %}You're receiving this email because you requested a username reset for your user account at Goamico.{% endblocktrans %}
 
 {% trans "Please go to the following page and choose a new username:" %}
 {{ protocol }}://{{ domain }}/{{ url|safe }}
@@ -13,11 +13,11 @@
 
 {% trans "Thanks for using our site!" %}
 
-{% blocktrans %}The Trustdine team{% endblocktrans %}
+{% blocktrans %}The Goamico team{% endblocktrans %}
 {% endblock text_body %}
 
 {% block html_body %}
-<p>{% blocktrans %}You're receiving this email because you requested a username reset for your user account at Trustdine.{% endblocktrans %}</p>
+<p>{% blocktrans %}You're receiving this email because you requested a username reset for your user account at Goamico.{% endblocktrans %}</p>
 
 <p>{% trans "Please go to the following page and choose a new username:" %}</p>
 <a href="https://goamico.com/en/{{ url|safe }}">https://goamico.com/en/{{ url|safe }}</a>
@@ -25,5 +25,5 @@
 
 <p>{% trans "Thanks for using our site!" %}</p>
 
-<p>{% blocktrans %}The Trustdine team{% endblocktrans %}</p>
+<p>{% blocktrans %}The Goamico team{% endblocktrans %}</p>
 {% endblock html_body %}

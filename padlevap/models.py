@@ -141,6 +141,7 @@ class EmailLetter(models.Model):
     is_read = models.BooleanField(default=False)
     subject = models.CharField(max_length=500,blank=True, null=True)
     category = models.CharField(max_length=500,blank=True, null=True)
+    message_type = models.CharField(max_length=500,blank=True, null=True)
     language = models.CharField(max_length=500,blank=True, null=True)
     date = models.CharField(max_length=500,blank=True, null=True)
     time = models.CharField(max_length=500,blank=True, null=True)

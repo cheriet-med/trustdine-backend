@@ -995,8 +995,9 @@ class VerifyGlobal(mixins.ListModelMixin,
 
 class Verifyid(APIView):
     """
-    Retrieve, update or delete a snippet instance.
+    Retrieve, update or delete a Verify instance.
     """
+
     def get_object(self, pk):
         try:
             return Verify.objects.get(pk=pk)
@@ -1010,20 +1011,16 @@ class Verifyid(APIView):
 
     def put(self, request, pk, format=None):
         snippet = self.get_object(pk)
-        serializer = VerifySerializer(snippet, data=request.data)
+        serializer = VerifySerializer(snippet, data=request.data, partial=True)  # allow partial update
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    
-  
     def delete(self, request, pk, format=None):
         snippet = self.get_object(pk)
         snippet.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-
-
 
 
 
@@ -4249,32 +4246,43 @@ def resend_verification(request):
 @csrf_exempt
 @require_POST
 def test_email_config(request):
-    """Test endpoint to check email configuration"""
+    """Send an email with subject and HTML message"""
     try:
-        data = json.loads(request.body)
-        test_email = data.get('email', 'test@example.com')
-        
-        # Try to send a simple test email
-        email_sent = send_mail(
-            subject='Test Email from Django',
-            message='This is a test email from your Django application.',
+        raw_body = request.body.decode('utf-8', errors='ignore')
+      
+        try:
+            data = json.loads(raw_body)
+        except json.JSONDecodeError:
+            return JsonResponse({'error': f'Invalid JSON body. Raw: {raw_body}'}, status=400)
+
+        recipient_email = data.get('email')
+        subject = data.get('subject')
+        message = data.get('message')  # 🔹 this will be treated as HTML
+
+        if not recipient_email or not subject or not message:
+            return JsonResponse(
+                {'error': 'Email, subject, and message are required.'},
+                status=400
+            )
+
+        # Create HTML email
+        email = EmailMessage(
+            subject=subject,
+            body=message,   # HTML body
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[test_email],
-            fail_silently=False
+            to=[recipient_email],
         )
-        
-        if email_sent:
-            return JsonResponse({'message': f'Test email sent successfully to {test_email}'}, status=200)
-        else:
-            return JsonResponse({'error': 'Failed to send test email (returned 0)'}, status=500)
-            
+        email.content_subtype = "html"  # 🔹 make it HTML
+
+        email.send(fail_silently=False)
+
+        return JsonResponse(
+            {'message': f'Email sent successfully to {recipient_email}'},
+            status=200
+        )
+
     except Exception as e:
-        return JsonResponse({'error': f'Failed to send test email: {str(e)}'}, status=500)
-
-
-
-
-
+        return JsonResponse({'error': f'Failed to send email: {str(e)}'}, status=500)
 
 
 
